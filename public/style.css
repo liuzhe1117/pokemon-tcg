@@ -1335,9 +1335,9 @@ body.arena-on #modal .dialog.sheet .choice-grid.small .pick-card img { width: 76
 /* ---------- The macOS app: no title bar. The traffic lights sit over the header's left end, and the window is
    dragged by the header (and by a strip along the top of the home screen). ---------- */
 .app-drag { display: none; }
-html.in-app .app-drag { display: block; position: absolute; top: 0; left: 0; right: 0; height: 46px; z-index: 2; }
-html.in-app header:not(.start-hero) { padding-left: 92px; -webkit-user-select: none; user-select: none; }
-html.in-app .start-lang { top: 12px; }
+html.mac-titlebar .app-drag { display: block; position: absolute; top: 0; left: 0; right: 0; height: 46px; z-index: 2; }
+html.mac-titlebar header:not(.start-hero) { padding-left: 92px; -webkit-user-select: none; user-select: none; }
+html.mac-titlebar .start-lang { top: 12px; }
 html.in-app body { -webkit-user-select: none; user-select: none; } /* an app, not a document: no text selection while dragging cards */
 html.in-app input, html.in-app textarea { -webkit-user-select: text; user-select: text; }
 

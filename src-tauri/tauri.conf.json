@@ -35,7 +35,7 @@
     "category": "CardGame",
     "copyright": "Code © Fatih Kadir Akın (MIT). Pokémon and its card images © Nintendo / Creatures / GAME FREAK / The Pokémon Company; fan-made, not affiliated.",
     "shortDescription": "Learn the Pokémon Trading Card Game against an AI opponent",
-    "longDescription": "Play 109 classic and modern Pokémon TCG decks against Gary, an AI opponent, while the Professor coaches you. Works offline with the built-in CPU engine or a local decision model (Kev); the hosted Jev model is optional and its API key is kept in the macOS Keychain.",
+    "longDescription": "Play 109 classic and modern Pokémon TCG decks against Gary, an AI opponent, while the Professor coaches you. Works offline with the built-in CPU engine or a local decision model. The optional hosted Jev model uses an API key stored in the system credential store.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

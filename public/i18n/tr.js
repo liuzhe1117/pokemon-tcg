@@ -178,7 +178,7 @@ export const STRINGS = {
   'eng.cpu.t': 'CPU (yerleşik)', 'eng.cpu.d': 'Tarayıcında çalışan kural tabanlı bir oyuncu. Anında karar verir ve internetsiz çalışır, ama bir karar modelinden daha basit oynar.',
   'eng.jev.t': 'Jev (bulut)', 'eng.jev.d': 'TypeSafe’in barındırdığı karar modeli. Güçlü ve hızlıdır, ama API anahtarı ve internet bağlantısı gerekir.',
   'eng.jev.key': 'Jev API anahtarı', 'eng.jev.save': 'Anahtarı kaydet ve kullan', 'eng.jev.saved': 'Bu bilgisayarda kayıtlı bir anahtar var (.env içinde). Değiştirmek için yenisini gir.', 'eng.jev.missing': 'Bu motoru kullanmak için Jev API anahtarını gir.',
-  'eng.jev.savedApp': "macOS Anahtar Zinciri’nde kayıtlı bir anahtar var. Değiştirmek için yenisini gir.",
+  'eng.jev.savedApp': "Sistemin kimlik bilgileri deposunda kayıtlı bir anahtar var. Değiştirmek için yenisini gir.",
   'eng.cpu.dApp': "Uygulamanın içinde çalışan kural tabanlı bir oyuncu. Anında karar verir ve internetsiz çalışır, ama bir karar modelinden daha basit oynar.",
   'eng.web.tab': "macOS uygulaması",
   'eng.web.note': "Bu web sürümü CPU motoruyla oynar. Daha güçlü bir Gary için macOS uygulamasını indir: Mac’inde çalışan karar modeli Kev’i ve buluttaki Jev’i ekler. Uygulama internetsiz de çalışır.",

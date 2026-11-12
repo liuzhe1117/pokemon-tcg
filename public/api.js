@@ -1,5 +1,5 @@
 // One door to the game's backend. In the browser it is the local Node server (server.js, plain fetch); in the
-// macOS app it is the Rust side (src-tauri), reached through Tauri's invoke. Both answer the same paths:
+// desktop app it is the Rust side (src-tauri), reached through Tauri's invoke. Both answer the same paths:
 //   GET /api/engine · POST /api/engine · POST /api/engine/stop · POST /api/decide
 // The hosted web version (scripts/build-web.mjs marks its page with <meta name="tcg-build" content="web">) has no
 // backend at all: Gary and the Professor play with the CPU engine, and the decision models come with the macOS app.

@@ -10,6 +10,7 @@
     "test:kev": "node tests/model.mjs 40 6 both 0.2",
     "app:dev": "tauri dev",
     "app:build": "tauri build --bundles app && node scripts/make-dmg.mjs",
+    "app:build:windows": "tauri build --target x86_64-pc-windows-msvc",
     "images": "node scripts/fetch-images.mjs",
     "web:build": "node scripts/build-web.mjs",
     "web:publish": "npm run web:build && sf publish site --space spc_d541c63539a747a985a7ee39408f4087",

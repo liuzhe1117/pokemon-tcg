@@ -6,7 +6,7 @@
 
 <p align="center">
   Learn the Pokémon Trading Card Game by playing it: 109 real decks, an AI opponent, and a coach that explains every move.<br>
-  In English, Turkish, Japanese, Spanish, Simplified Chinese and Traditional Chinese. Runs in the browser or as a macOS app, and works offline.
+  In English, Turkish, Japanese, Spanish, Simplified Chinese and Traditional Chinese. Runs in the browser or as a macOS or Windows app.
 </p>
 
 <p align="center">
@@ -49,6 +49,10 @@ This installs **Pokemon TCG** to your Applications folder (Apple Silicon, macOS 
 
 The app is ad-hoc signed, not notarized with an Apple Developer ID. The cask removes the download quarantine for you. If you install the DMG from [Releases](https://github.com/f/pokemon-tcg/releases) by hand, macOS blocks the app the first time: allow it in **System Settings → Privacy & Security**, then open it again.
 
+### Windows app
+
+Run the x64 `-setup.exe` produced by the build below. The installer can download Microsoft Edge WebView2 if it is missing. The CPU engine and bundled card assets work offline. Optional local models need `uv` on PATH, and Kev also needs Git.
+
 ### Run it from source
 
 You need Node 21.7+ and `cwebp` (`brew install webp`). This version can use every engine (CPU, Kev and Jev).
@@ -74,7 +78,7 @@ npm start        # → http://localhost:8787
 - **Drag and drop.** Pick up a card and only the places it can legally go light up.
 - **Six languages.** English, Türkçe, 日本語, Español, 简体中文 and 繁體中文 cover every screen, rule, card explanation and deck description.
 - **Offline.** The built-in CPU engine and local models need no internet. Your game is saved before every decision and resumes where you left off.
-- **macOS app.** The app has no title bar (drag the top bar to move the window). Your Jev API key stays in the macOS Keychain.
+- **Desktop app.** On macOS, drag the top bar to move the window. On Windows, use the standard title bar. Both store your Jev API key in the system credential store.
 
 ## Screenshots
 
@@ -101,7 +105,7 @@ Gary and the Professor think with the engine you pick in **Settings** (the gear 
 | --- | --- | --- |
 | **CPU** | A rule-based player built into the game | Nothing. Works offline |
 | **Local model** | An open decision model from Hugging Face, downloaded once and run on your machine | [uv](https://docs.astral.sh/uv/), disk space and RAM for the model. Works offline after the download |
-| **Jev** | TypeSafe's hosted decision model | Internet and a Jev API key. The app stores the key in the macOS Keychain; the web version stores it in `.env` and never sends it back to the browser |
+| **Jev** | TypeSafe's hosted decision model | Internet and a Jev API key. The desktop app uses macOS Keychain or Windows Credential Manager. The development server reads the key from `.env`. |
 
 | Local model | Download | Notes |
 | --- | --- | --- |
@@ -113,7 +117,7 @@ Gary and the Professor think with the engine you pick in **Settings** (the gear 
 [Kev](https://github.com/jaredpalmer/kev) is a family of open (Apache-2.0) decision models built on Qwen3.5. Kev speaks the same System One API as Jev: yes/no, choice and score questions, with calibrated probabilities. On its authors' held-out benchmark, Kev-9B scores 0.82 (dev) and 0.85 (test), against 0.86 for Jev.
 
 The first time you pick a Kev model, the game clones and installs Kev and shows download progress in Settings. The model then runs on port 8009.
-- The web server puts Kev in `../kev` (or `KEV_DIR`). The app keeps it in its Application Support folder.
+- The web server puts Kev in `../kev` (or `KEV_DIR`). The desktop app keeps it in the platform's app data folder.
 - The weights stay in the Hugging Face cache, so the web version and the app share them.
 - Laya runs through `uvx`.
 
@@ -172,9 +176,18 @@ Games use 6 Prize cards and today's turn structure: the first player can't attac
 | `npm run test:kev` | 40 games against the local Kev model (port 8009) |
 | `npm run app:dev` | The macOS app in development mode |
 | `npm run app:build` | The release app and DMG in `src-tauri/target/release/bundle/` |
+| `npm run app:build:windows` | The Windows x64 NSIS installer in `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/` |
 | `npm run web:build` | The hosted web version in `site/`: the landing page and the CPU-only game (`npm run web:publish` builds and publishes it to Spacefast) |
 
-Building the app needs [Rust](https://rustup.rs) and the Xcode Command Line Tools as well.
+The macOS build needs [Rust](https://rustup.rs) and the Xcode Command Line Tools. Run `npm run images` before either desktop build to bundle the card art for offline play.
+
+On Windows, install the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) and run `npm run app:build:windows`. To cross-compile on macOS, install LLVM, LLD and NSIS, put their binaries on PATH, then run the commands below. See the [Tauri NSIS guide](https://v2.tauri.app/distribute/windows-installer/) for setup details.
+
+```bash
+rustup target add x86_64-pc-windows-msvc
+cargo install --locked cargo-xwin
+XWIN_ARCH=x86_64 npm run app:build:windows -- --runner cargo-xwin
+```
 
 ### How it fits together
 

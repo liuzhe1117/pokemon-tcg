@@ -1,35 +1,48 @@
-// Pokémon TCG Academy for macOS. The window shows the game (public/, copied to dist/ at build time) with no title
-// bar. The Tauri command `api` handles the same engine paths as server.js.
+// Pokémon TCG Academy desktop app. The window shows the game (public/, copied to dist/ at build time).
+// The Tauri command `api` handles the same engine paths as server.js.
 //   GET  /api/engine       the decision engine settings and the local model's status
 //   POST /api/engine       choose cpu / jev / local (and a model), or save the Jev key
 //   POST /api/engine/stop  stop the local model server
 //   POST /api/decide       one decision for Gary or the Professor, from Jev or the local model
 // The separate `card_image_resource` command fetches approved localized card image resources.
-// The Jev API key lives in the macOS Keychain. Without internet Jev is off; the CPU engine (in the page) and local
+// The Jev API key lives in the system credential store. Without internet Jev is off; the CPU engine (in the page) and local
 // models (Kev or Laya, run with uv; their weights stay in the Hugging Face cache) keep working.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod card_images;
 
+#[cfg(windows)]
+use process_wrap::std::{ChildWrapper, CommandWrap, CreationFlags, JobObject};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+#[cfg(unix)]
+use std::{os::unix::process::CommandExt, process::Child};
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::{
     collections::HashMap,
+    ffi::OsString,
     fs,
     io::{BufRead, BufReader, Read},
-    os::unix::process::CommandExt,
     path::{Path, PathBuf},
-    process::{Child, Command, Stdio},
+    process::{Command, Stdio},
     sync::{Arc, Mutex},
     thread,
     time::Duration,
 };
 use tauri::{Manager, RunEvent, State};
+#[cfg(windows)]
+use windows::Win32::System::Threading::CREATE_NO_WINDOW;
+
+#[cfg(unix)]
+type ModelChild = Child;
+#[cfg(windows)]
+type ModelChild = Box<dyn ChildWrapper>;
 
 const JEV_URL: &str = "https://api.typesafe.ai";
 const LOCAL_PORT: u16 = 8009;
-const KEYCHAIN_SERVICE: &str = "io.github.f.pokemon-tcg";
-const KEYCHAIN_USER: &str = "jev-api-key";
+const CREDENTIAL_SERVICE: &str = "io.github.f.pokemon-tcg";
+const CREDENTIAL_USER: &str = "jev-api-key";
 
 // Local decision models the app knows how to download and run (same list as server.js).
 struct ModelDef {
@@ -63,7 +76,7 @@ struct Local {
     model: Option<String>,
     status: String,
     error: String,
-    child: Option<Child>,
+    child: Option<ModelChild>,
     total: u64,
     log: Vec<String>,
     gen: u64,
@@ -89,15 +102,15 @@ fn reply(status: u16, body: Value) -> ApiResponse {
     ApiResponse { status, body }
 }
 
-// ---------------------------------------------------------------- Keychain (the Jev key)
-fn keychain() -> Option<keyring::Entry> {
-    keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_USER).ok()
+// ---------------------------------------------------------------- System credential store (the Jev key)
+fn jev_credential() -> keyring::Result<keyring::Entry> {
+    keyring::Entry::new(CREDENTIAL_SERVICE, CREDENTIAL_USER)
 }
 fn jev_key() -> Option<String> {
-    keychain()?.get_password().ok().filter(|k| !k.trim().is_empty())
+    jev_credential().ok()?.get_password().ok().filter(|k| !k.trim().is_empty())
 }
-fn save_jev_key(key: &str) -> Result<(), String> {
-    keychain().ok_or("Keychain unavailable")?.set_password(key).map_err(|e| e.to_string())
+fn save_jev_key(key: &str) -> keyring::Result<()> {
+    jev_credential()?.set_password(key)
 }
 
 // ---------------------------------------------------------------- config
@@ -117,17 +130,50 @@ fn save_config(dir: &Path, c: &Config) {
 
 // ---------------------------------------------------------------- Hugging Face cache (where model weights live)
 fn hf_hub() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_default();
-    std::env::var("HF_HOME").map(PathBuf::from).unwrap_or_else(|_| Path::new(&home).join(".cache/huggingface")).join("hub")
+    if let Some(path) = std::env::var_os("HF_HUB_CACHE") {
+        return PathBuf::from(path);
+    }
+    std::env::var_os("HF_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| user_home().join(".cache").join("huggingface"))
+        .join("hub")
 }
-fn blobs(repo: &str) -> PathBuf {
-    hf_hub().join(format!("models--{}", repo.replace('/', "--"))).join("blobs")
+fn repo_cache(repo: &str) -> PathBuf {
+    hf_hub().join(format!("models--{}", repo.replace('/', "--")))
 }
+
+fn snapshot_bytes(dir: &Path) -> u64 {
+    let Ok(entries) = fs::read_dir(dir) else { return 0 };
+    entries
+        .flatten()
+        .filter_map(|entry| {
+            let metadata = entry.metadata().ok()?;
+            if metadata.is_dir() {
+                Some(snapshot_bytes(&entry.path()))
+            } else {
+                metadata.is_file().then(|| metadata.len())
+            }
+        })
+        .sum()
+}
+
 fn repo_bytes(repo: &str) -> u64 {
-    fs::read_dir(blobs(repo)).map(|d| d.flatten().filter_map(|e| e.metadata().ok()).map(|m| m.len()).sum()).unwrap_or(0)
+    let cache = repo_cache(repo);
+    let blobs = fs::read_dir(cache.join("blobs"))
+        .map(|entries| {
+            entries
+                .flatten()
+                .filter_map(|entry| fs::metadata(entry.path()).ok())
+                .filter(|file| file.is_file())
+                .map(|file| file.len())
+                .sum::<u64>()
+        })
+        .unwrap_or(0);
+    // Hugging Face stores real files in snapshots when symlinks are unavailable.
+    blobs + snapshot_bytes(&cache.join("snapshots"))
 }
 fn has_incomplete(m: &ModelDef) -> bool {
-    m.repos.iter().any(|r| fs::read_dir(blobs(r)).map(|d| d.flatten().any(|e| e.file_name().to_string_lossy().ends_with(".incomplete"))).unwrap_or(false))
+    m.repos.iter().any(|r| fs::read_dir(repo_cache(r).join("blobs")).map(|d| d.flatten().any(|e| e.file_name().to_string_lossy().ends_with(".incomplete"))).unwrap_or(false))
 }
 async fn expected_bytes(http: &reqwest::Client, repo: &str) -> u64 {
     let url = format!("https://huggingface.co/api/models/{repo}/tree/main?recursive=true");
@@ -154,11 +200,22 @@ async fn local_ready(http: &reqwest::Client) -> bool {
 }
 
 // ---------------------------------------------------------------- local model process
-// Apps opened from Finder get a minimal PATH; uv and git usually live in these places.
-fn tool_path() -> String {
-    let home = std::env::var("HOME").unwrap_or_default();
-    let base = std::env::var("PATH").unwrap_or_default();
-    format!("{home}/.local/bin:{home}/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:{base}")
+fn user_home() -> PathBuf {
+    let variable = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+    std::env::var_os(variable).map(PathBuf::from).unwrap_or_default()
+}
+
+fn tool_path() -> OsString {
+    let home = user_home();
+    let base = std::env::var_os("PATH").unwrap_or_default();
+    let mut paths = Vec::new();
+    if home.is_absolute() {
+        paths.extend([home.join(".local").join("bin"), home.join(".cargo").join("bin")]);
+    }
+    // Finder launches with a minimal PATH, so include common Homebrew locations.
+    #[cfg(target_os = "macos")]
+    paths.extend([PathBuf::from("/opt/homebrew/bin"), PathBuf::from("/usr/local/bin")]);
+    std::env::join_paths(paths.into_iter().chain(std::env::split_paths(&base))).unwrap_or(base)
 }
 fn push_log(local: &Mutex<Local>, line: String) {
     let mut l = local.lock().unwrap();
@@ -177,10 +234,12 @@ fn set_error(app: &AppState, gen: u64, msg: String) {
 fn run_blocking(cmd: &str, args: &[&str], cwd: Option<&Path>) -> Result<(), String> {
     let mut c = Command::new(cmd);
     c.args(args).env("PATH", tool_path()).stdout(Stdio::null()).stderr(Stdio::piped());
+    #[cfg(windows)]
+    c.creation_flags(CREATE_NO_WINDOW.0);
     if let Some(d) = cwd {
         c.current_dir(d);
     }
-    let out = c.output().map_err(|e| format!("{cmd} is needed for local models ({e}); install it with Homebrew"))?;
+    let out = c.output().map_err(|e| format!("couldn't run {cmd} ({e}); install it and add it to PATH"))?;
     if out.status.success() {
         Ok(())
     } else {
@@ -188,8 +247,22 @@ fn run_blocking(cmd: &str, args: &[&str], cwd: Option<&Path>) -> Result<(), Stri
     }
 }
 
-// The model server runs in its own process group (uv starts a Python child), so the whole group is stopped.
-fn kill_group(child: &mut Child) {
+#[cfg(unix)]
+fn spawn_model(mut command: Command) -> std::io::Result<ModelChild> {
+    command.process_group(0).spawn()
+}
+
+#[cfg(windows)]
+fn spawn_model(command: Command) -> std::io::Result<ModelChild> {
+    CommandWrap::from(command)
+        .wrap(CreationFlags(CREATE_NO_WINDOW))
+        .wrap(JobObject)
+        .spawn()
+}
+
+// uv starts a Python child. Stop the whole group when leaving the model.
+#[cfg(unix)]
+fn kill_group(child: &mut ModelChild) {
     let pid = child.id() as i32;
     unsafe { libc::killpg(pid, libc::SIGTERM) };
     for _ in 0..50 {
@@ -200,6 +273,11 @@ fn kill_group(child: &mut Child) {
     }
     unsafe { libc::killpg(pid, libc::SIGKILL) };
     let _ = child.wait();
+}
+
+#[cfg(windows)]
+fn kill_group(child: &mut ModelChild) {
+    let _ = child.kill();
 }
 
 fn stop_local(app: &AppState) {
@@ -299,17 +377,27 @@ async fn start_local(app: AppState, id: String) {
             cmd.arg("--offline");
         }
         cmd.args(["--python", "3.12", "--from", "laya[serve]", "laya-serve"]);
-        cmd.envs([("LAYA_HOST", "127.0.0.1".to_string()), ("LAYA_PORT", LOCAL_PORT.to_string()), ("LAYA_DEVICE", "mps".into()), ("LAYA_PRELOAD", "1".into())]);
+        cmd.envs([("LAYA_HOST", "127.0.0.1".to_string()), ("LAYA_PORT", LOCAL_PORT.to_string()), ("LAYA_PRELOAD", "1".into())]);
+        #[cfg(target_os = "macos")]
+        cmd.env("LAYA_DEVICE", "mps");
     }
-    cmd.env("PATH", tool_path()).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).process_group(0);
+    cmd.env("PATH", tool_path()).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     if !net {
         cmd.envs([("HF_HUB_OFFLINE", "1"), ("TRANSFORMERS_OFFLINE", "1")]); // weights come from the cache only
     }
-    let mut child = match cmd.spawn() {
+    let mut child = match spawn_model(cmd) {
         Ok(c) => c,
-        Err(e) => return set_error(&app, gen, format!("couldn't start the model server ({e}); is uv installed? (brew install uv)")),
+        Err(e) => return set_error(&app, gen, format!("couldn't start the model server ({e}); check that uv is installed and on PATH")),
     };
-    for pipe in [child.stdout.take().map(|p| Box::new(p) as Box<dyn Read + Send>), child.stderr.take().map(|p| Box::new(p) as Box<dyn Read + Send>)].into_iter().flatten() {
+    #[cfg(unix)]
+    let (stdout, stderr) = (child.stdout.take(), child.stderr.take());
+    #[cfg(windows)]
+    let (stdout, stderr) = (child.stdout().take(), child.stderr().take());
+    let pipes = [
+        stdout.map(|p| Box::new(p) as Box<dyn Read + Send>),
+        stderr.map(|p| Box::new(p) as Box<dyn Read + Send>),
+    ];
+    for pipe in pipes.into_iter().flatten() {
         let app = app.clone();
         thread::spawn(move || {
             for line in BufReader::new(pipe).lines().map_while(Result::ok) {
@@ -392,7 +480,7 @@ fn engine_state(app: &AppState) -> Value {
 async fn set_engine(app: &AppState, body: Value) -> ApiResponse {
     if let Some(key) = body["jevKey"].as_str().map(str::trim).filter(|k| !k.is_empty()) {
         if let Err(e) = save_jev_key(key) {
-            return reply(500, json!({ "error": format!("couldn't save the key in the Keychain: {e}") }));
+            return reply(500, json!({ "error": format!("couldn't save the Jev key: {e}") }));
         }
         *app.jev_set.lock().unwrap() = true;
     }

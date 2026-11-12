@@ -181,7 +181,7 @@ export const STRINGS = {
   'eng.cpu.t': 'CPU (built in)', 'eng.cpu.d': 'A rule-based player that runs in your browser. Instant and works offline, but plays more simply than a decision model.',
   'eng.jev.t': 'Jev (cloud)', 'eng.jev.d': 'TypeSafe’s hosted decision model. Strong and fast, but needs an API key and an internet connection.',
   'eng.jev.key': 'Jev API key', 'eng.jev.save': 'Save key & use', 'eng.jev.saved': 'A key is saved on this computer (in .env). Enter a new one to replace it.', 'eng.jev.missing': 'Enter your Jev API key to use this engine.',
-  'eng.jev.savedApp': "A key is saved in your macOS Keychain. Enter a new one to replace it.",
+  'eng.jev.savedApp': "A key is saved in your system credential store. Enter a new one to replace it.",
   'eng.cpu.dApp': "A rule-based player built into the app. Instant and works offline, but plays more simply than a decision model.",
   'eng.web.tab': "macOS app",
   'eng.web.note': "This web version plays with the CPU engine. For a stronger Gary, get the macOS app: it adds Kev, a decision model that runs on your Mac, and Jev in the cloud. The app also works offline.",

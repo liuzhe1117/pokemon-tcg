@@ -6,7 +6,10 @@ import { api, inApp, online, webOnly, MAC_DOWNLOAD } from './api.js';
 import { bindCardImage, cardImageAttrs, refreshCardImages } from './card-image/display.js';
 import { requestCardImage } from './card-image/request.js';
 
-if (inApp) document.documentElement.classList.add('in-app'); // the macOS app (see the in-app rules in style.css)
+if (inApp) {
+  document.documentElement.classList.add('in-app');
+  if (navigator.userAgent.includes('Macintosh')) document.documentElement.classList.add('mac-titlebar');
+}
 import { t, setLang, getLang, cardName, attackName, powerName, termName, deckName, resolve, RULES_HTML } from './i18n.js';
 
 const $ = (s) => document.querySelector(s);

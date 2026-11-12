@@ -1,7 +1,7 @@
 [package]
 name = "pokemon-tcg"
 version = "0.1.1"
-description = "Pokémon TCG Academy for macOS: learn the Pokémon Trading Card Game against Gary, with the Professor as your coach."
+description = "Pokémon TCG Academy: learn the Pokémon Trading Card Game against Gary, with the Professor as your coach."
 authors = ["Fatih Kadir Akın"]
 license = "MIT"
 repository = "https://github.com/f/pokemon-tcg"
@@ -16,9 +16,15 @@ tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-keyring = { version = "3", features = ["apple-native"] }
-libc = "0.2"
+keyring = { version = "3", features = ["apple-native", "windows-native"] }
 tokio = { version = "1", features = ["time"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+process-wrap = { version = "10.0.1", default-features = false, features = ["std", "creation-flags", "job-object"] }
+windows = { version = "0.62", features = ["Win32_System_Threading"] }
 
 [profile.release]
 codegen-units = 1

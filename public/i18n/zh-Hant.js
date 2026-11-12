@@ -303,7 +303,7 @@ export const STRINGS = {
   "eng.jev.save": "儲存金鑰並使用",
   "eng.jev.saved": "金鑰已儲存在此電腦的 .env 中，輸入新金鑰可替換。",
   "eng.jev.missing": "請輸入 Jev API 金鑰以使用此引擎。",
-  "eng.jev.savedApp": "金鑰已儲存在 macOS 鑰匙串，輸入新金鑰可替換。",
+  "eng.jev.savedApp": "金鑰已儲存在系統認證存放區，輸入新金鑰可替換。",
   "eng.cpu.dApp": "應用內建的規則型對手，決策即時且支援離線，但策略比決策模型簡單。",
   "eng.web.tab": "macOS 應用",
   "eng.web.note": `網頁版使用 CPU 引擎。macOS 應用還支持在 Mac 運行的 Kev 和雲端 Jev，可提供更強的 ${names.person.gary}，並支持離線運行。`,
