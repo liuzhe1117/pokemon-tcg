@@ -1,0 +1,44 @@
+package.json
+  s_b92d2d3c30c067::t_a70f1257747212 13
+public/api.js
+  s_b92d2d3c30c067::t_d7747b85c35f1c 2
+public/i18n/en.js
+  s_b92d2d3c30c067::t_db488fc4368b85 184
+public/i18n/es.js
+  s_b92d2d3c30c067::t_25b13dbeb858c5 288
+public/i18n/ja.js
+  s_b92d2d3c30c067::t_225983c2ae7c29 286
+public/i18n/tr.js
+  s_b92d2d3c30c067::t_5161d5a8a44f60 181
+public/i18n/zh-Hans.js
+  s_b92d2d3c30c067::t_36c323b9084c57 305
+public/i18n/zh-Hant.js
+  s_b92d2d3c30c067::t_8c357d64ce1163 306
+public/style.css
+  s_b92d2d3c30c067::t_0d71f95b28315f 1338-1340
+public/ui.js
+  s_b92d2d3c30c067::t_ab74a558aa6686 9-12
+src-tauri/Cargo.lock
+  s_b92d2d3c30c067::t_e3f91a2dd42597 1723,1727,1937-1948,2357,2364,2463-2473,4410-4418,4454,4459-4475,4509-4514,4525-4530,4545-4550,4555-4560,4575-4580,4591-4596,4611-4616,4627-4632
+src-tauri/tauri.conf.json
+  s_b92d2d3c30c067::t_d64b334a238804 38
+src-tauri/tauri.windows.conf.json
+  s_b92d2d3c30c067::t_281b363b0ea20b 1-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "20c6e9cb9bb242c404ff77ae0a1c71bfa9fa9c1c",
+  "prompts": {},
+  "logical_commit_id": "20c6e9cb9bb242c404ff77ae0a1c71bfa9fa9c1c",
+  "sessions": {
+    "s_b92d2d3c30c067": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1cf1c-be8a-75f0-b4f1-8917145ad079",
+        "model": "unknown"
+      },
+      "human_author": "liuzhe1117 <liuzhe1117@gmail.com>"
+    }
+  }
+}
