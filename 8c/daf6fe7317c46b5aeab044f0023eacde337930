@@ -1,0 +1,40 @@
+public/vendor/fonts/chinese/manifest.json
+  s_c306f9e0c85ec7::t_50bda63e7ae51f 1-59
+public/vendor/fonts/chinese/LICENSE-ChironGoRound.md
+  s_c306f9e0c85ec7::t_4ca87cf25b556a 1-99
+public/vendor/fonts/chinese/OFL-LXGW975Yuan.txt
+  s_c306f9e0c85ec7::t_1686fe2206d81c 1-98
+public/ui.js
+  s_76b8c6b992dcda::t_82e41df521044f 47-52,2487,2577
+scripts/build-web.mjs
+  s_76b8c6b992dcda::t_3af43ce7bdec32 88,95-99
+public/i18n.js
+  s_76b8c6b992dcda::t_d1f34dd4f460a8 1,9-12,16,18,20,24-28,55
+public/locales.js
+  s_76b8c6b992dcda::t_9c9a74352f9bba 1-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "8cdaf6fe7317c46b5aeab044f0023eacde337930",
+  "prompts": {},
+  "logical_commit_id": "05d784ff0a64a7f69fd035724c06374f126454b4",
+  "sessions": {
+    "s_76b8c6b992dcda": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1c5d3-1ec4-74a2-920e-55cdeecc04bf",
+        "model": "unknown"
+      },
+      "human_author": "liuzhe <liuzhe@bigo.sg>"
+    },
+    "s_c306f9e0c85ec7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1c5f3-c557-7a02-9315-de43dc26fe7f",
+        "model": "unknown"
+      },
+      "human_author": "liuzhe <liuzhe@bigo.sg>"
+    }
+  }
+}

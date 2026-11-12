@@ -1,0 +1,46 @@
+public/engine-mega.js
+  s_22ae4111a9bd13::t_d495c122b07476 364,422,454,487,539-540
+public/engine-modern.js
+  s_22ae4111a9bd13::t_3fd21c04683259 190,655-658,661-666,669-672
+public/engine-sm.js
+  s_22ae4111a9bd13::t_09a3ebeae606da 353-354,420,521-522,586-587,620-621
+public/engine-swsh-v.js
+  s_22ae4111a9bd13::t_ce7d78550dd7d5 410-411,503,520,526,560,609,611,617,648,662,667-668,674-677
+public/engine-swsh.js
+  s_22ae4111a9bd13::t_cab90e73b9f8b1 203,211-213,267
+public/engine.js
+  s_22ae4111a9bd13::t_27e34e95cad668 198,204-221,941,980,995,1002-1007,1040,1051,1057,1163,1229,1332,1381,1383-1385,1389-1435,1440-1442
+public/i18n/en.js
+  s_22ae4111a9bd13::t_0c94fed9e9151f 627-632
+public/i18n/es.js
+  s_22ae4111a9bd13::t_6bf4815f31794a 1009-1014
+public/i18n/ja.js
+  s_22ae4111a9bd13::t_c8316877c33ee2 1007-1012
+public/i18n/tr.js
+  s_22ae4111a9bd13::t_d6e9f929ca0ca0 621-626
+public/i18n/zh-Hans.js
+  s_22ae4111a9bd13::t_90b0a52a3efc1f 1026-1031
+public/i18n/zh-Hant.js
+  s_22ae4111a9bd13::t_4f1900cd5a839f 1027-1032
+public/ui.js
+  s_22ae4111a9bd13::t_f36665b3087dcf 2064-2069
+tests/rules.mjs
+  s_22ae4111a9bd13::t_96654779ae0be2 1199-1263
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "f4219af8ef836b544337c71d3c184838109c8658",
+  "prompts": {},
+  "logical_commit_id": "2df1a7ed45bb9a621ad539615a05176cb24903e3",
+  "sessions": {
+    "s_22ae4111a9bd13": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1c666-408f-7a51-964b-e44279513cac",
+        "model": "unknown"
+      },
+      "human_author": "liuzhe1117 <liuzhe1117@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,116 @@
+package.json
+  s_22ae4111a9bd13::t_64dfc6d29e8d2e 8
+public/card-image/browser-render.js
+  s_22ae4111a9bd13::t_ea133445142c22 1-99
+public/card-image/cache.js
+  s_22ae4111a9bd13::t_c40d5f8e491e62 1-78
+public/card-image/display.js
+  s_22ae4111a9bd13::t_70ad4b39b90b0e 1-158
+public/card-image/edge-repair.js
+  s_22ae4111a9bd13::t_ba5bb150a4675a 1-107
+public/card-image/flow.js
+  s_22ae4111a9bd13::t_8597483c2f4a28 1-153
+public/card-image/layout.js
+  s_22ae4111a9bd13::t_9344233cd62ab9 1-91
+public/card-image/pokemon.js
+  s_22ae4111a9bd13::t_f90b806b0eabfd 1-316
+public/card-image/printed.js
+  s_22ae4111a9bd13::t_25c9841869d753 1-112
+public/card-image/repair-worker.js
+  s_22ae4111a9bd13::t_88a0b49e2a2316 1-10
+public/card-image/repair.js
+  s_22ae4111a9bd13::t_c797128e9ed2bf 1-682
+public/card-image/request.js
+  s_22ae4111a9bd13::t_a98790c044998c 1-37
+public/card-image/source.js
+  s_22ae4111a9bd13::t_db476f14e9573a 1-125
+public/card-image/svg.js
+  s_22ae4111a9bd13::t_9009238290d682 1-25
+public/content-i18n/names.js
+  s_22ae4111a9bd13::t_3a64d22f816f29 10,14
+public/content-i18n/zh-Hans.js
+  s_22ae4111a9bd13::t_42c8b367f1fbc5 9,22,28-29
+public/i18n/en.js
+  s_22ae4111a9bd13::t_9e59cd194fb930 217-221
+public/i18n/es.js
+  s_22ae4111a9bd13::t_eb84ed71acdb1c 378-382
+public/i18n/ja.js
+  s_22ae4111a9bd13::t_3812dd8bdb3cce 376-380
+public/i18n/tr.js
+  s_22ae4111a9bd13::t_1a81fc58805819 214-218
+public/i18n/zh-Hans.js
+  s_22ae4111a9bd13::t_091e6d075bc30f 395-399
+public/i18n/zh-Hant.js
+  s_22ae4111a9bd13::t_e7a1dfd8f7f05e 396-400
+public/index.html
+  s_22ae4111a9bd13::t_e85988f280fadf 105-117
+public/ui.js
+  s_22ae4111a9bd13::t_df8ef766d0bce1 2,6,41-43,78,84,135,577,591,647,658,664,673,706,932,1180,1249,1304,1365,1380,1394,1829-1839,1962,1975,2046-2047,2118,2217,2268,2375,2490-2493,2499,2522,2530,2595,2665-2669,2671-2674,2676-2677
+scripts/build-dist.mjs
+  s_22ae4111a9bd13::t_719961f0a5b451 3,5,8,23
+scripts/build-web.mjs
+  s_22ae4111a9bd13::t_1d8bfd501833e7 12,50
+scripts/card-localization/README.md
+  s_22ae4111a9bd13::t_38e542e6e0f069 1-90
+scripts/card-localization/catalog.mjs
+  s_22ae4111a9bd13::t_e4b05199d0ecf5 1-387
+scripts/card-localization/data/cohorts.json
+  s_22ae4111a9bd13::t_d4001cd3f24f9b 1-210
+scripts/card-localization/data/effects.json
+  s_22ae4111a9bd13::t_83dff5c3c93d14 1-356
+scripts/card-localization/data/layouts.json
+  s_22ae4111a9bd13::t_e7ec6dd722f019 1-2860
+scripts/card-localization/data/locales/zh-Hans.json
+  s_22ae4111a9bd13::t_a63557d00d1526 1-7749
+scripts/card-localization/data/locales/zh-Hant.json
+  s_22ae4111a9bd13::t_342a214e2c82bf 1-16
+scripts/card-localization/data/pokemon-layouts.json
+  s_22ae4111a9bd13::t_9658f582c3348f 1-24365
+scripts/card-localization/data/printed/zh-Hans.json
+  s_22ae4111a9bd13::t_a92ab4ab0daf6c 1-700
+scripts/card-localization/data/scan-layouts.json
+  s_22ae4111a9bd13::t_248b84d35a9ebf 1-4567
+scripts/card-localization/extended.zh-Hans.mjs
+  s_22ae4111a9bd13::t_c15e73c6783533 1-4
+scripts/card-localization/flow.mjs
+  s_22ae4111a9bd13::t_7d13f88de725cf 1-57
+scripts/card-localization/generate.mjs
+  s_22ae4111a9bd13::t_8382a7c11236b7 1-207
+scripts/card-localization/printed.mjs
+  s_22ae4111a9bd13::t_7c8ae9e3e3712c 1-29
+scripts/card-localization/render.mjs
+  s_22ae4111a9bd13::t_92b37d54b3a63e 1-119
+scripts/card-localization/runtime-assets.mjs
+  s_22ae4111a9bd13::t_2fd43a9556031c 1-92
+scripts/card-localization/samples.zh-Hans.mjs
+  s_22ae4111a9bd13::t_d202b588655019 1-4
+scripts/localize-card.mjs
+  s_22ae4111a9bd13::t_e8a0ee5717e257 1-218
+server.js
+  s_22ae4111a9bd13::t_a189d602f355f5 1,15,265-291
+src-tauri/src/card_images.rs
+  s_22ae4111a9bd13::t_b9f5b0956e4da9 1-51
+src-tauri/src/main.rs
+  s_22ae4111a9bd13::t_59ed40e7ae99e4 2,7,12-13,497
+tests/card-images.mjs
+  s_22ae4111a9bd13::t_e09d325f974689 1-72
+tests/i18n.mjs
+  s_22ae4111a9bd13::t_1e58cebaf29a33 20-23,238-282
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "1747ed6cbe60456a00f6330095e8b689d97dd119",
+  "prompts": {},
+  "logical_commit_id": "2e9e5f9939e3e676d7d624e724bc3b62651ef1bf",
+  "sessions": {
+    "s_22ae4111a9bd13": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1c666-408f-7a51-964b-e44279513cac",
+        "model": "unknown"
+      },
+      "human_author": "liuzhe1117 <liuzhe1117@gmail.com>"
+    }
+  }
+}
