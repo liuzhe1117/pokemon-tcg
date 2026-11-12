@@ -1,0 +1,88 @@
+public/card-image/flow.js
+  s_22ae4111a9bd13::t_60601546c95aa1 31-32,67
+public/card-image/layout.js
+  s_22ae4111a9bd13::t_a79151fe48d5b2 1,24-25,72-88,95-97,100-103
+public/card-image/pokemon.js
+  s_22ae4111a9bd13::t_f314b73d31a3e0 20-21,111-114,121,230-231,274-275,292,294-295,301,304-305
+public/card-image/printed.js
+  s_22ae4111a9bd13::t_4b988464ed4c05 3,8-9,14,16-17,26,30-43,53,98-115,119
+public/card-image/svg.js
+  s_22ae4111a9bd13::t_df63449444b5e1 13-14,16-18
+public/content-i18n/es.js
+  s_22ae4111a9bd13::t_ed29c0ab375bd0 25,28-29,37
+public/content-i18n/ja.js
+  s_22ae4111a9bd13::t_b4c30428d43b87 23,30-31,38
+public/content-i18n/tr.js
+  s_22ae4111a9bd13::t_5a95d4a16e2b93 26-30
+public/content-i18n/zh-Hant-terms.js
+  s_22ae4111a9bd13::t_ec064893cbc7bf 319,1597-1599
+public/content-i18n/zh-Hant.js
+  s_22ae4111a9bd13::t_cced775a556057 11,17-18
+public/index.html
+  s_22ae4111a9bd13::t_8cceddea85f67f 108-109
+scripts/card-localization/README.md
+  s_22ae4111a9bd13::t_017078a99c334b 3,7,9,19,21-22,55,57,63-66,75,77,83
+scripts/card-localization/catalog.mjs
+  s_22ae4111a9bd13::t_d460f8ce1d9733 73-75,100-103,108-109,136-137,148-157,181-188,191-193,204-213,302-304,348,355-356,372-374
+scripts/card-localization/data/layouts.json
+  s_22ae4111a9bd13::t_122198087509c7 2332-2369,2374
+scripts/card-localization/data/locales/es.json
+  s_22ae4111a9bd13::t_cec5bcf4e2a6c0 1-7752
+scripts/card-localization/data/locales/ja.json
+  s_22ae4111a9bd13::t_97a86e608e71a3 1-7752
+scripts/card-localization/data/locales/tr.json
+  s_22ae4111a9bd13::t_698d23c00a6954 1-7752
+scripts/card-localization/data/locales/zh-Hans.json
+  s_22ae4111a9bd13::t_3900768a0fe9df 30,172-173
+scripts/card-localization/data/locales/zh-Hant.json
+  s_22ae4111a9bd13::t_efbe2e743267a2 3-9,11-32,34-58,62-120,122-7775
+scripts/card-localization/data/pokemon-layouts.json
+  s_22ae4111a9bd13::t_2d1e2e34a663ad 8013,8025,20688,20703,20705
+scripts/card-localization/data/printed/es.json
+  s_22ae4111a9bd13::t_a93d7445ee49be 1-2852
+scripts/card-localization/data/printed/ja.json
+  s_22ae4111a9bd13::t_76e1916266d41f 1-2513
+scripts/card-localization/data/printed/zh-Hans.json
+  s_22ae4111a9bd13::t_b9c0d7c2b420e8 86,94,103,114,134,141,173,256,304,374,430,492,530,711-737
+scripts/card-localization/data/printed/zh-Hant.json
+  s_22ae4111a9bd13::t_f9462f6993dd18 1-2031
+scripts/card-localization/data/reviews/es-catalog.json
+  s_22ae4111a9bd13::t_b9c8f630e4d30b 1-4954
+scripts/card-localization/data/reviews/ja-catalog.json
+  s_22ae4111a9bd13::t_a3a5dd1ce5dbfc 1-9425
+scripts/card-localization/data/reviews/tr-catalog.json
+  s_22ae4111a9bd13::t_35d93fbafa3670 1-8
+scripts/card-localization/data/reviews/zh-Hant-100.json
+  s_22ae4111a9bd13::t_63b4c9480671ff 1-728
+scripts/card-localization/data/reviews/zh-Hant-catalog.json
+  s_22ae4111a9bd13::t_1abd9467356fc2 1-4472
+scripts/card-localization/runtime-assets.mjs
+  s_22ae4111a9bd13::t_42829317a0c8f6 82-96,98-100,105
+scripts/localize-card.mjs
+  s_22ae4111a9bd13::t_da99cbb0a54412 25
+server.js
+  s_22ae4111a9bd13::t_9ddc63cedb7d33 267-268,270-271
+src-tauri/src/card_images.rs
+  s_22ae4111a9bd13::t_27be4c198d671a 7-31,39-42,50-65,82
+tests/card-images.mjs
+  s_22ae4111a9bd13::t_77cfcc9124f4e4 4,8-29
+tests/i18n.mjs
+  s_22ae4111a9bd13::t_f8329b651759fc 20,22,52,242-258,260-279,308,311-315,319-333
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "0d18f56fbceea56a930a258716185c3b2f4ac90d",
+  "prompts": {},
+  "logical_commit_id": "0d18f56fbceea56a930a258716185c3b2f4ac90d",
+  "sessions": {
+    "s_22ae4111a9bd13": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1c666-408f-7a51-964b-e44279513cac",
+        "model": "unknown"
+      },
+      "human_author": "liuzhe1117 <liuzhe1117@gmail.com>"
+    }
+  }
+}
