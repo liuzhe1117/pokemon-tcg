@@ -11,9 +11,11 @@ for (let i = 0; i < 400; i++) {
   const orig = g.handleKOs.bind(g);
   g.handleKOs = async (attacker) => {
     const before = g.players.map(p => p.prizes.length);
-    const ko = g.players.flatMap(p => g.allMons(p).filter(m => m.damage >= m.maxHp).map(m => ({ owner: p.idx, m, mega: m.card.tags?.includes('Mega'), gengar: g.allMons(p).some(x => x.card.powerKind === 'shadowyConcealment') && m.card.type === 'Darkness' && g.koBy?.card.tags?.includes('ex'),
-      // Altered Creation-GX (with an extra Water Energy): Knock Outs of the Active Pokémon by the taker's attacks give 1 more
-      altered: !!(g.koBy && g.players[1 - p.idx].until.alteredPrize && g.allMons(g.players[1 - p.idx]).includes(g.koBy) && p.active === m) })));
+    const ko = g.players.flatMap(p => g.allMons(p).filter(m => m.damage >= m.maxHp).map(m => ({
+      owner: p.idx, m, mega: m.card.tags?.includes('Mega'),
+      gengar: g.damageKOs?.has(m) && m.card.type === 'Darkness' && g.koBy?.card.tags?.includes('ex') && g.allMons(p).some(x => x.card.powerKind === 'shadowyConcealment' && g.powerOn(x)),
+      altered: !!(g.players[1 - p.idx].until.alteredPrize && g.damageKOs?.get(m) === true),
+    })));
     await orig(attacker);
     for (const k of ko) {
       const taker = 1 - k.owner, got = before[taker] - g.players[taker].prizes.length;

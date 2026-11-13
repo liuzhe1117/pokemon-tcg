@@ -31,7 +31,7 @@ function newGame(decks, { answers0 = [], answers1 = [] } = {}) {
   return g;
 }
 const check = (name, ok, extra = '') => { if (ok) passed++; else { failed++; console.log('FAIL', name, extra); } };
-const withCoin = async (h, fn) => { const r = Math.random; Math.random = () => (h ? 0.1 : 0.9); try { return await fn(); } finally { Math.random = r; } };
+const withCoin = async (h, fn) => { const r = Math.random; Math.random = () => ((typeof h === 'function' ? h() : h) ? 0.1 : 0.9); try { return await fn(); } finally { Math.random = r; } };
 const attackBy = async (g, p, name) => { const i = g.attacksOf(p.active).findIndex((a) => a.name === name); if (i < 0) throw new Error('no attack ' + name); await g.attack(p, i); };
 
 // ---------------- Classic ----------------
@@ -105,6 +105,62 @@ const attackBy = async (g, p, name) => { const i = g.attacksOf(p.active).findInd
   const act = g.legalActions(me).find((a) => a.kind === 'evolve');
   await g.perform(me, act);
   check('Call the Boss fetches Giovanni', me.hand.some((c) => c.name === 'Giovanni'));
+}
+{ // Risky Attack: heads hits the defender; tails only damages Machoke.
+  for (const heads of [true, false]) {
+    const g = newGame(['giovanni', 'koga']);
+    const [me, op] = g.players;
+    const machoke = me.active = mon(g, "Giovanni's Machoke", { energy: ['Fighting'] });
+    const backup = mon(g, "Giovanni's Machop");
+    me.bench = [backup];
+    op.active = mon(g, "Koga's Weezing");
+    await withCoin(heads, () => attackBy(g, me, 'Risky Attack'));
+    check(heads ? 'Risky Attack heads: 60 to the defender' : 'Risky Attack tails: 100 to Machoke and a Knock Out',
+      op.active.damage === (heads ? 60 : 0) && machoke.damage === (heads ? 0 : 100) && me.active === (heads ? machoke : backup),
+      `defender: ${op.active.damage}, Machoke: ${machoke.damage}`);
+  }
+}
+{ // Fury Punch shows the damage based on Machop's current damage counters.
+  for (const damage of [0, 20]) {
+    const g = newGame(['giovanni', 'koga']);
+    const [me, op] = g.players;
+    me.active = mon(g, "Giovanni's Machop", { energy: ['Fighting', 'Fighting'], damage });
+    op.active = mon(g, "Koga's Weezing");
+    let outcome;
+    g.hooks.onCoin = ({ heads }) => { outcome = heads; };
+    await withCoin(true, () => attackBy(g, me, 'Fury Punch'));
+    const expected = damage * 2;
+    check(`Fury Punch heads: shows and deals ${expected} damage`,
+      op.active.damage === expected && outcome?.key === (expected ? 'coin.o.plus' : 'coin.o.zero') && (outcome.params.n ?? 0) === expected,
+      JSON.stringify(outcome));
+  }
+}
+{ // Keep flipping until tails, including after 20 consecutive heads.
+  for (const [deck, id, attack, expected] of [
+    ['bodyguard', 'base3-47', 'Stone Barrage', 210],
+    ['sm-let-s-play-pikachu', 'sm35-28', 'Iron Tail', 420],
+    ['sv-kangaskhan', 'sv3-174', 'Damage Rush', 680],
+  ]) {
+    const g = newGame([deck, deck]);
+    const [me, op] = g.players;
+    const attacker = CARDS[id];
+    const cost = attacker.attacks.find((a) => a.name === attack).cost;
+    me.active = mon(g, attacker.name, { pick: (c) => c.id === id, energy: cost.map((t) => t === 'Colorless' ? 'Fighting' : t) });
+    op.active = new Mon({ ...card("Koga's Weezing"), hp: 1000 }, 0);
+    let flips = 0;
+    await withCoin(() => flips++ < 21, () => attackBy(g, me, attack));
+    check(`${attack}: counts 21 heads and stops on tails`, flips === 22 && op.active.damage === expected, `${flips} flips, ${op.active.damage} damage`);
+  }
+}
+{ // Fury Cutter displays the extra damage for the next heads, based on the heads already flipped.
+  const g = newGame(['sm-forest-shadow', 'sm-forest-shadow']);
+  const [me, op] = g.players;
+  me.active = mon(g, 'Parasect', { pick: (c) => c.id === 'sm1-5', energy: ['Grass', 'Grass', 'Grass'] });
+  op.active = new Mon({ ...card("Koga's Weezing"), hp: 200 }, 0);
+  const bonuses = [];
+  g.hooks.onCoin = ({ heads }) => { bonuses.push(heads.params.n); };
+  await withCoin(true, () => attackBy(g, me, 'Fury Cutter'));
+  check('Fury Cutter: shows +20, +40, +50 and deals 120', op.active.damage === 120 && bonuses.join(',') === '20,40,50', bonuses);
 }
 { // Stadiums: Cerulean, Pewter, Cinnabar, Viridian, Vermilion (optional flip)
   const g = newGame(['gym-misty', 'gym-brock']);
@@ -274,13 +330,16 @@ const attackBy = async (g, p, name) => { const i = g.attacksOf(p.active).findInd
   await g.megaOnDamaged(op, op.active, me.active);
   check('Automated Combat: 3 counters on attacker', me.active.damage === 30, me.active.damage);
   const g2 = newGame(['sv-steven', 'sv-miraidon']);
-  const s = g2.players[0]; s.active = mon(g2, "Steven's Beldum", { energy: ['Metal'] }); s.bench = [mon(g2, "Steven's Carbink", { tools: ['Exp. Share'] })];
-  g2.koBy = mon(g2, 'Pikachu', { pick: (c) => c.set === 'sv3pt5' });
-  g2.megaOnKO(s, s.active);
-  check('Exp. Share moves an Energy', s.bench[0].energy.length === 1);
-  const m = g2.players[1]; m.active = mon(g2, 'Pikachu', { pick: (c) => c.set === 'sv3pt5', energy: ['Lightning'] }); m.bench = [mon(g2, 'Raichu', { pick: (c) => c.power })];
-  await g2.modernOnKO(m, m.active);
-  check('Electrical Grounding moves Lightning Energy', m.bench[0].energy.length === 1);
+  const [m, s] = g2.players;
+  m.active = mon(g2, 'Pikachu', { pick: (c) => c.set === 'sv3pt5', energy: ['Lightning', 'Lightning'] });
+  s.active = mon(g2, "Steven's Beldum", { energy: ['Metal', 'Lightning'] });
+  s.active.damage = s.active.maxHp - 20;
+  const carbink = mon(g2, "Steven's Carbink", { tools: ['Exp. Share'] });
+  const raichu = mon(g2, 'Raichu', { pick: (c) => c.powerKind === 'electricalGrounding' });
+  s.bench = [carbink, raichu];
+  await attackBy(g2, m, 'Pika Punch');
+  check('Exp. Share moves an Energy after a damage Knock Out', carbink.energy.some((x) => x.energyType === 'Metal'));
+  check('Electrical Grounding moves Lightning Energy after a damage Knock Out', raichu.energy.some((x) => x.energyType === 'Lightning'));
   const g3 = newGame(['svd-miraidon', 'me-gengar']);
   const [v, x] = g3.players;
   v.active = mon(g3, 'Iron Hands'); v.bench = [mon(g3, 'Iron Valiant ex')]; x.active = mon(g3, 'Gastly');
@@ -376,6 +435,7 @@ const attackBy = async (g, p, name) => { const i = g.attacksOf(p.active).findInd
   const [gg, rv] = g3.players;
   gg.bench = [mon(g3, 'Mega Gengar ex')]; const sab = mon(g3, 'Sableye', { pick: (c) => c.set === 'me2' });
   g3.koBy = mon(g3, 'Regieleki V');
+  g3.damageKOs = new Map([[sab, true]]);
   check('Shadowy Concealment does not apply to a Pokémon V attacker', g3.prizeValue(gg, sab) === 1);
   g3.koBy = mon(g3, 'Miraidon ex', { pick: (c) => c.set === 'sv1' });
   check('Shadowy Concealment applies to a Pokémon ex attacker', g3.prizeValue(gg, sab) === 0);
@@ -768,8 +828,9 @@ const useAbility = async (g, p, kind) => { const act = g.legalActions(p).find((a
   const g2 = Game.restore(JSON.parse(JSON.stringify(g.serialize())), { controllers: [scripted(), scripted()], hooks: {} });
   check('GX attack used is saved with the game', g2.players[0].gxUsed === true);
   check('Altered Creation-GX: your attacks do 30 more', g.finalDamage(me.active, op.active, 100).dmg === 130, g.finalDamage(me.active, op.active, 100).dmg);
-  g.koBy = me.active;
-  check('Altered Creation-GX with an extra Water Energy: 1 more Prize card', g.prizeValue(op, op.active) === 2, g.prizeValue(op, op.active));
+  me.active.energy.push(en('Metal'));
+  await attackBy(g, me, 'Ultimate Ray');
+  check('Altered Creation-GX with an extra Water Energy: 1 more Prize card', me.prizes.length === 4, me.prizes.length);
 }
 { // Strike Energy: only on their Pokémon; Rapid Strike Energy pays 2 Water/Fighting; Single Strike +20; Double Turbo −20; Stone Fighting −20
   const g = newGame(['swl-urshifu-rapid', 'swl-urshifu-single']);
@@ -1283,6 +1344,143 @@ const sm = (c) => /^sm\d|^smp|^sm75|^sm35/.test(c.set || '');
   w4.active = mon(g4, 'Lillipup', { pick: withAtk('Work Up'), energy: ['Water'] }); b4.active = tank(g4, 'Bewear');
   await attackBy(g4, w4, 'Work Up'); g4.turn += 2; await attackBy(g4, w4, 'Work Up');
   check('Work Up: its +20 only adds to attacks that do damage', b4.active.damage === 0, b4.active.damage);
+}
+{ // Suction Shock depends on actually switching a Benched Pokémon in.
+  const g = newGame(['sv-tapu-koko', 'sv-houndoom']);
+  const [me, op] = g.players;
+  me.active = mon(g, 'Eelektross', { pick: withAtk('Suction Shock'), energy: ['Lightning', 'Lightning'] });
+  const original = op.active = tank(g, 'Bewear');
+  let flips = 0;
+  g.hooks.onCoin = () => { flips++; };
+  await withCoin(true, () => attackBy(g, me, 'Suction Shock'));
+  check('Suction Shock: no Bench, no damage or coin flip', original.damage === 0 && !original.status.paralyzed && flips === 0);
+  const replacement = tank(g, 'Bewear'); op.bench = [replacement];
+  await withCoin(true, () => attackBy(g, me, 'Suction Shock'));
+  check('Suction Shock: 60 damage and paralysis on the Pokémon switched in', op.active === replacement && replacement.damage === 60 && replacement.status.paralyzed && original.damage === 0 && flips === 1);
+}
+{ // Aura Jab can split up to three basic Fighting Energy cards across the Bench.
+  const g = newGame(['mel-lucario', 'swsh-zacian'], { answers0: [
+    (pr) => pr.options[0].id, (pr) => pr.options[0].id,
+    (pr) => pr.options[0].id, (pr) => pr.options[1].id,
+    (pr) => pr.options[0].id, (pr) => pr.options[1].id,
+  ] });
+  const [me, op] = g.players;
+  me.active = mon(g, 'Mega Lucario ex', { energy: ['Fighting', 'Fighting'] });
+  me.bench = [mon(g, 'Riolu'), mon(g, 'Riolu')];
+  op.active = tank(g, 'Bewear');
+  me.discard = [en('Fighting'), en('Fighting'), en('Fighting'), en('Fighting'), en('Fire')];
+  await attackBy(g, me, 'Aura Jab');
+  check('Aura Jab: moves three Fighting Energy to the chosen Benched Pokémon', me.bench[0].energy.length === 1 && me.bench[1].energy.length === 2 && me.discard.length === 2);
+}
+{ // Up-to searches let the player stop after one even when more Energy is available.
+  for (const [deck, pokemon, attack, type] of [
+    ['sv-tapu-koko', 'Boltund', 'Electrifying Dash', 'Lightning'],
+    ['swsh-rillaboom', 'Eldegoss', 'Blessing of Fluff', 'Grass'],
+    ['swl-calyrex-shadow', 'Cresselia', 'Crescent Glow', 'Psychic'],
+  ]) {
+    const answers0 = [
+      (pr) => pr.kind === 'attachTo' ? pr.options[1].id : pr.options[0].id,
+      (pr) => pr.options[0].id,
+      'none',
+    ];
+    if (attack !== 'Crescent Glow') answers0.splice(1, 1);
+    const g = newGame([deck, deck], { answers0 });
+    const [me, op] = g.players;
+    g.turn = 2;
+    me.active = mon(g, pokemon, { pick: withAtk(attack), energy: [type, type] });
+    me.bench = [mon(g, 'Riolu')]; op.active = tank(g, 'Bewear');
+    me.deck = [en(type), en(type), en(type)];
+    await attackBy(g, me, attack);
+    check(`${attack}: player chooses to take just one Energy`, me.bench[0].energy.length === 1 && me.deck.length === 2);
+  }
+}
+{ // Damage from a snipe and damage counters moved as an effect obey different protection.
+  const g = newGame(['svl-gardevoir', 'swsh-zacian']);
+  const [me, op] = g.players;
+  me.active = mon(g, 'Cresselia', { pick: withAtk('Moonglow Reverse'), energy: ['Psychic'], damage: 20 });
+  me.bench = [mon(g, 'Riolu', { damage: 10 })];
+  op.active = tank(g, 'Bronzong');
+  op.active.effects.noEffects = { expires: g.turn };
+  await attackBy(g, me, 'Moonglow Reverse');
+  check('Moonglow Reverse: no counters are removed if the opponent blocks them', me.active.damage === 20 && me.bench[0].damage === 10 && op.active.damage === 0);
+  delete op.active.effects.noEffects;
+  await attackBy(g, me, 'Moonglow Reverse');
+  check('Moonglow Reverse: counters move when the target accepts them', me.active.damage === 0 && me.bench[0].damage === 0 && op.active.damage === 30);
+  me.active = mon(g, 'Kingdra', { pick: withAtk('Brine'), energy: ['Water'] });
+  op.active.effects.noEffects = { expires: g.turn };
+  await attackBy(g, me, 'Brine');
+  check('Brine: protection from effects still allows 90 damage', op.active.damage === 120);
+}
+{ // Ignore only the defenses that each card says to ignore.
+  const g = newGame(['gym-brock', 'gym-misty']);
+  const [me, op] = g.players;
+  me.active = mon(g, "Brock's Sandslash", { pick: withAtk('Swift'), energy: ['Fighting', 'Fighting'] });
+  op.active = tank(g, "Misty's Seadra");
+  op.active.effects.shield = { kind: 'all', expires: g.turn };
+  await attackBy(g, me, 'Swift');
+  check('Classic Swift: ignores effects that prevent damage', op.active.damage === 20);
+  me.active = mon(g, 'Meowth', { pick: withAtk('Coin Hurl'), energy: ['Fighting'] });
+  op.active.effects.shield = { kind: 'damage', expires: g.turn };
+  await withCoin(true, () => attackBy(g, me, 'Coin Hurl'));
+  check('Coin Hurl: damage-only shield still prevents damage', op.active.damage === 20);
+
+  const g2 = newGame(['sv-houndoom', 'swsh-zacian']);
+  const [m2, o2] = g2.players;
+  m2.active = mon(g2, 'Umbreon', { pick: withAtk('Feint Attack'), energy: ['Darkness'] });
+  o2.active = tank(g2, 'Bewear');
+  o2.active.effects.shield = { kind: 'all', expires: g2.turn };
+  await attackBy(g2, m2, 'Feint Attack');
+  check('Feint Attack: ignores the target’s attack damage shield', o2.active.damage === 50);
+}
+{ // Placed counters do not trigger effects that require a Knock Out by attack damage.
+  const g = newGame(['sv-tapu-koko', 'sv-tapu-koko']);
+  const [me, op] = g.players;
+  me.active = mon(g, 'Drifblim', { pick: withAtk('Curse Spreading'), energy: ['Psychic', 'Psychic'] });
+  me.until.alteredPrize = true;
+  op.active = mon(g, 'Drifloon', { energy: ['Lightning'], tools: ['Wishful Baton'] });
+  op.active.damage = op.active.maxHp - 10;
+  const carbink = mon(g, "Steven's Carbink", { tools: ['Exp. Share'] });
+  const raichu = mon(g, 'Raichu', { pick: (c) => c.powerKind === 'electricalGrounding' });
+  op.bench = [carbink, raichu];
+  await attackBy(g, me, 'Curse Spreading');
+  check('Counter Knock Out: 1 Prize, with no damage-only Energy transfers', me.prizes.length === 5 && carbink.energy.length === 0 && raichu.energy.length === 0);
+  g.turn++; g.current = op;
+  op.active = mon(g, 'Tapu Koko ex', { pick: withAtk('Vengeful Shock'), energy: ['Lightning', 'Lightning'] });
+  me.active = tank(g, 'Bewear');
+  await attackBy(g, op, 'Vengeful Shock');
+  check('Vengeful Shock: a previous counter Knock Out gives neither bonus damage nor paralysis', me.active.damage === 30 && !me.active.status.paralyzed);
+}
+{ // Double Turbo Energy and Daunt also reduce damage to the Bench.
+  const chooseBench = (pr) => pr.options[1].id;
+  const g = newGame(['swsh-inteleon', 'swl-mew'], { answers0: [chooseBench, chooseBench] });
+  const [me, op] = g.players;
+  me.active = mon(g, 'Inteleon V', { pick: withAtk('Snipe Shot') });
+  me.active.energy = [card('Double Turbo Energy')];
+  op.active = tank(g, 'Bewear'); op.bench = [tank(g, 'Bewear')];
+  await attackBy(g, me, 'Snipe Shot');
+  check('Snipe Shot: Double Turbo Energy reduces damage to the Bench from 40 to 20', op.bench[0].damage === 20);
+  g.turn++; g.current = op;
+  op.active = mon(g, 'Unfezant', { pick: withAtk('Daunt'), energy: ['Fighting', 'Fighting', 'Fighting'] });
+  await attackBy(g, op, 'Daunt');
+  g.turn++; g.current = me;
+  await attackBy(g, me, 'Snipe Shot');
+  check('Daunt: the reduced attack does no additional damage to the Bench', op.bench[0].damage === 20);
+}
+{ // On-damage abilities and devolution apply through their normal attack entry points.
+  const g = newGame(['swsh-inteleon', 'svd-miraidon']);
+  const [me, op] = g.players;
+  me.active = mon(g, 'Inteleon V', { pick: withAtk('Snipe Shot'), energy: ['Water', 'Water'] });
+  op.active = mon(g, 'Iron Jugulis', { pick: (c) => c.powerKind === 'automatedCombat' });
+  await attackBy(g, me, 'Snipe Shot');
+  check('Automated Combat: reacts when an attack directly picks the Active target', me.active.damage === 30 && op.active.damage === 40);
+  me.active.tools = [{ card: card('Technical Machine: Devolution'), expires: g.turn }];
+  const evolved = tank(g, 'Bewear');
+  evolved.stack.unshift(card('Stufful'));
+  evolved.status.poisoned = true;
+  evolved.effects.weaken = { n: 20, expires: g.turn + 1 };
+  op.active = evolved;
+  await attackBy(g, me, 'Devolution');
+  check('Devolution: clears the target’s special conditions and lingering attack effects', evolved.stack.length === 1 && !evolved.status.poisoned && !evolved.effects.weaken);
 }
 { // Dan: Rock-Paper-Scissors — a tie plays another round (each round reaches the UI), winning draws 2 more
   const g = newGame(['swsh-charizard', 'swsh-zacian'], { answers0: ['rock', 'rock'], answers1: ['rock', 'scissors'] });

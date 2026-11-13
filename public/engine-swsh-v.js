@@ -20,7 +20,6 @@ export function installSwshV(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH
       if (a.card.type === 'Metal') n += 20 * this.allMons(q).filter((x) => x.card.powerKind === 'steelySpirit' && this.powerOn(x)).length; // Steely Spirit
       if (d && isV(d.card) && a.tools.some((t) => t.card.tool === 'choiceBelt')) n += 30;
       n += 20 * a.energy.filter((en) => en.special === 'singleStrike').length;
-      n -= 20 * a.energy.filter((en) => en.special === 'doubleTurbo').length;
       if (q.flags.powerTablet && tag(a.card, 'Fusion Strike')) n += 30 * q.flags.powerTablet;
       if (q.until.alteredCreation) n += 30; // Altered Creation-GX, for the rest of the game
       return n + this.smAttackBonus(a, q);
@@ -43,9 +42,9 @@ export function installSwshV(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH
     },
     // Damage from an opponent's attack to a Pokémon other than through the main hit (Bench damage, snipes).
     // Returns false when it is prevented: Wave Veil protects the Bench, Infiltrator flips.
-    async swshBenchShield(q, m, src, n) {
+    async swshBenchShield(q, m, src, n, { ignoreDef = false } = {}) {
       if (q.bench.includes(m) && this.allMons(q).some((x) => x.card.powerKind === 'waveVeil' && this.powerOn(x))) { this.log('log.waveVeil', { m: C(m) }, 'status'); return false; }
-      if (n > 0 && m.card.powerKind === 'infiltrator' && this.powerOn(m)) {
+      if (!ignoreDef && n > 0 && m.card.powerKind === 'infiltrator' && this.powerOn(m)) {
         this.log('log.power.auto', { m: C(m), pw: powerRef(m.card.power) }, 'status');
         if (await this.flip('power', { pw: powerRef(m.card.power) }, [{ key: 'coin.o.preventDamage', params: {} }, { key: 'coin.o.nothing', params: {} }])) return false;
       }
@@ -54,8 +53,7 @@ export function installSwshV(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH
     swshRetreat(p, m, c) { return this.smRetreat(p, m, this.stadiumIs('towerOfWaters') && tag(m.card, 'Rapid Strike') ? c - 2 : c); },
     // Altered Creation-GX with an extra Water Energy: 1 more Prize card for Knocking Out the Defending Pokémon.
     swshPrizeBonus(q, m) {
-      const by = this.koBy, taker = by && this.ownerOf(by);
-      return taker && taker !== q && taker.until.alteredPrize && q.active === m ? 1 : 0;
+      return this.opp(q).until.alteredPrize && this.damageKOs?.get(m) === true ? 1 : 0;
     },
     // Fusion Strike Energy: the opponent's Abilities have no effect on this Pokémon.
     abilityImmune(m) { return m.energy.some((en) => en.special === 'fusionStrike'); },
@@ -731,7 +729,7 @@ export function installSwshV(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH
         if (p.deck.some(ok)) {
           const t = await this.pickMon(p, 'attachTo', this.allMons(p), 'prompt.q.attachTo', { c: attackRef(atk) }, 'Attach the Energy to which Pokémon?', (x) => -this.energyGap(x) * -1 + (x.card.prizes || 0));
           for (let k = 0; k < n; k++) {
-            const en = p.deck.find(ok);
+            const en = n > 1 ? await this.pickCard(p, 'search', p.deck.filter(ok), 'prompt.q.searchEnergy', { c: attackRef(atk) }, 'Choose a basic Energy to attach.', { none: true, ai: () => 1 }) : p.deck.find(ok);
             if (!en) break;
             await this.hooks.onAttach?.({ p: p.idx, mon: t.id, card: en });
             t.energy.push(this.searchDeck(p, en));
