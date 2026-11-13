@@ -60,11 +60,9 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
     // ---------------- Knock Outs ----------------
     // Energy Grounding and Wishful Baton save Energy from a Knocked Out Pokémon.
     async smOnKO(q, m) {
-      // Both need a Knock Out by damage from the opponent's attack (not damage counters).
-      if (!this.koBy || this.ownerOf(this.koBy) === q || m.hitTurn !== this.turn) return;
       const alive = (x) => x !== m && x.damage < x.maxHp; // not Knocked Out in the same attack
       // Wishful Baton: up to 3 basic Energy to 1 Benched Pokémon (its owner picks them one by one).
-      if (q.active === m && m.tools.some((t) => t.card.tool === 'wishfulBaton') && q.bench.some(alive) && m.energy.some(basicEnergy)) {
+      if (this.damageKOs.get(m) === true && m.tools.some((t) => t.card.tool === 'wishfulBaton') && q.bench.some(alive) && m.energy.some(basicEnergy)) {
         const t = await this.pickMon(q, 'attachTo', q.bench.filter(alive), 'prompt.q.attachTo', { c: 'Wishful Baton' }, 'Wishful Baton: move the basic Energy to which Benched Pokémon?', (x) => -this.energyGap(x) * -1 + (x.card.prizes || 0));
         let n = 0;
         for (let k = 0; k < 3 && m.energy.some(basicEnergy); k++) {
@@ -587,9 +585,13 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
         bonus += fx.discardHandTypeTimes.n * paid.length;
       }
       if (fx.furyCutter) {
+        const bonuses = [0, 20, 60, 110]; // 3 heads: 120 damage in all
         let heads = 0;
-        for (let k = 0; k < 3; k++) if (await this.flip('multi', { atk: attackRef(atk), i: k + 1, n: 3, so: heads }, [{ key: 'coin.o.plus', params: { n: 0 } }, { key: 'coin.o.nothing', params: {} }])) heads++;
-        bonus += [0, 20, 60, 110][heads]; // 3 heads: 120 damage in all
+        for (let k = 0; k < 3; k++) {
+          const nextBonus = bonuses[heads + 1] - bonuses[heads];
+          if (await this.flip('multi', { atk: attackRef(atk), i: k + 1, n: 3, so: heads }, [{ key: 'coin.o.plus', params: { n: nextBonus } }, { key: 'coin.o.nothing', params: {} }])) heads++;
+        }
+        bonus += bonuses[heads];
       }
       if (fx.eruption) {
         let n = 0;
@@ -598,7 +600,7 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
       }
       // Swim: if any of the opponent's Pokémon has Water Energy, the damage may go to a Benched Pokémon instead.
       if (fx.swimSnipe && o.bench.length && this.allMons(o).some((x) => x.energyTypes.some((t) => isType(t, fx.swimSnipe.type)))) {
-        const t = await this.pickMonOrNone(p, 'snipe', o.bench.filter((x) => !this.effectsBlocked(x)), 'prompt.q.swim', { c: attackRef(atk), n: atk.base }, `Do ${atk.base} damage to a Benched Pokémon instead of the Active one?`, (x) => (x.hpLeft <= atk.base ? 100 + (x.card.prizes || 1) * 10 : -50), d && d.hpLeft <= atk.base ? 50 : 0);
+        const t = await this.pickMonOrNone(p, 'snipe', o.bench, 'prompt.q.swim', { c: attackRef(atk), n: atk.base }, `Do ${atk.base} damage to a Benched Pokémon instead of the Active one?`, (x) => (x.hpLeft <= atk.base ? 100 + (x.card.prizes || 1) * 10 : -50), d && d.hpLeft <= atk.base ? 50 : 0);
         if (t) { p.flags.swimTarget = t.id; return -1e9; }
       }
       if (fx.bonusIfOppHandHas) {
@@ -730,7 +732,7 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
       }
       if (fx.drawPerNamed) this.plog(p, 'log.t.drewN', { n: this.draw(p, this.allMons(p).filter((x) => x.name === fx.drawPerNamed).length) });
       if (fx.snipeDamaged) {
-        const pool = this.allMons(o).filter((x) => x.damage && !this.effectsBlocked(x));
+        const pool = this.allMons(o).filter((x) => x.damage);
         const t = await this.pickMon(p, 'snipe', pool, 'prompt.q.snipeDamaged', { c: attackRef(atk), n: fx.snipeDamaged }, `Do ${fx.snipeDamaged} damage to which damaged Pokémon?`, (x) => (x.hpLeft <= fx.snipeDamaged ? 100 + (x.card.prizes || 1) * 10 : 0) - x.hpLeft / 10);
         if (t) {
           const n = t === o.active ? this.finalDamage(a, t, fx.snipeDamaged).dmg : fx.snipeDamaged;

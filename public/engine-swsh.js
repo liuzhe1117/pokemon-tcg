@@ -252,7 +252,7 @@ export function installSwsh(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
       }
       // Targeted Skewer: damage to a Benched Pokémon for each damage counter on it.
       if (fx.snipeByCounters && o.bench.length) {
-        const t = await this.pickMon(p, 'snipe', o.bench.filter((x) => !this.effectsBlocked(x)), 'prompt.q.snipeByCounters', { c: attackRef(atk), n: fx.snipeByCounters }, `Which Benched Pokémon takes ${fx.snipeByCounters} damage for each damage counter on it?`, (x) => (x.counters * fx.snipeByCounters >= x.hpLeft ? 100 : 0) + x.counters);
+        const t = await this.pickMon(p, 'snipe', o.bench, 'prompt.q.snipeByCounters', { c: attackRef(atk), n: fx.snipeByCounters }, `Which Benched Pokémon takes ${fx.snipeByCounters} damage for each damage counter on it?`, (x) => (x.counters * fx.snipeByCounters >= x.hpLeft ? 100 : 0) + x.counters);
         const n = t ? fx.snipeByCounters * t.counters : 0;
         if (n) { await this.spread(a, [[t, n]]); this.log('log.benchSnipe', { n, list: C(t) }, 'dmg'); }
       }

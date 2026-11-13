@@ -1473,7 +1473,7 @@ function attackEffects(atk, owner) {
   const fx = atk.fx, out = [];
   const cardTerm = (name) => cardName({ name });
   const attackTerm = (name) => attackName({ name, sourceCardId: atk.sourceCardId });
-  if (fx.lure) out.push(t('fx.lure'));
+  if (fx.lure) out.push(fx.fixedBase ? t('fx.lureDamage', { n: fx.fixedBase }) : t('fx.lure'));
   if (fx.needsDefAsleep) out.push(t('fx.needsDefAsleep'));
   if (fx.flipFail) out.push(t('fx.flipFail'));
   if (fx.flipMulti) out.push(t('fx.flipMulti', { n: fx.flipMulti, per: atk.base, max: atk.base * fx.flipMulti }));
@@ -1546,7 +1546,7 @@ function attackEffects(atk, owner) {
   if (fx.flipBenchAll) T('benchAll', { n: fx.flipBenchAll });
   // Modern cards
   const ty = (x) => ({ $type: x });
-  if (fx.fixedBase) T('fixedBase', { n: fx.fixedBase });
+  if (fx.fixedBase && !fx.lure) T('fixedBase', { n: fx.fixedBase });
   if (fx.timesPrizeTaken) T('timesPrizeTaken', { n: fx.timesPrizeTaken });
   if (fx.plusPrizeTaken) T('plusPrizeTaken', { n: fx.plusPrizeTaken });
   if (fx.plusSelfEnergy) T('plusSelfEnergy', { n: fx.plusSelfEnergy.n, t: ty(fx.plusSelfEnergy.type) });
@@ -1563,7 +1563,10 @@ function attackEffects(atk, owner) {
   if (fx.callAny) T('callAny', { n: fx.callAny.n });
   if (fx.healAny) T('healAny', { n: fx.healAny });
   if (fx.attachDiscardAny) T(fx.attachDiscardAny.type ? 'attachDiscardType' : 'attachDiscardAny', { n: fx.attachDiscardAny.n, t: fx.attachDiscardAny.type && ty(fx.attachDiscardAny.type) });
-  if (fx.attachDiscardBench) T(fx.attachDiscardBench.type ? 'attachDiscardBench' : 'attachDiscardBenchAny', { t: ty(fx.attachDiscardBench.type) });
+  if (fx.attachDiscardBench) {
+    const { type, n } = fx.attachDiscardBench;
+    T(n > 1 ? 'attachDiscardBenchUpTo' : type ? 'attachDiscardBench' : 'attachDiscardBenchAny', { n, t: ty(type) });
+  }
   if (fx.searchBasicEnergy) T(fx.searchBasicEnergy.type ? 'searchEnergyType' : 'searchBasicEnergy', { n: fx.searchBasicEnergy.n, t: fx.searchBasicEnergy.type && ty(fx.searchBasicEnergy.type) });
   if (typeof fx.searchAttach === 'object') T('searchAttachN', { n: fx.searchAttach.n, t: ty(fx.searchAttach.type) });
   if (fx.searchAttachBench) T(fx.searchAttachBench.type ? 'searchAttachBench' : 'searchAttachBenchAny', { n: fx.searchAttachBench.n, t: ty(fx.searchAttachBench.type) });
@@ -1749,7 +1752,7 @@ function explainCard(card, mon = null) {
     card.retreat ? L('ex.retreat', { n: card.retreat }) : L('ex.retreat0'),
   ];
   const attacks = card.attacks.map((a) => {
-    const dmg = a.fx.timesSelfCounters || a.fx.flipMulti ? '' : a.base ? L('ex.dmg', { n: a.base }) : L('ex.noDmg');
+    const dmg = a.fx.timesSelfCounters || a.fx.flipMulti || a.fx.fixedBase ? '' : a.base ? L('ex.dmg', { n: a.base }) : L('ex.noDmg');
     const fx = attackEffects(a);
     let ready = '';
     if (mon) {

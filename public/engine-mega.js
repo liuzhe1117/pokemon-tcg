@@ -59,9 +59,10 @@ export function installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
 
     // How many Prize cards a Knock Out gives (Mega Evolution ex 3, ex/V 2; Shadowy Concealment takes 1 off).
     prizeValue(q, m) {
-      let n = m.card.prizes || 1;
       const by = this.koBy;
-      if (by && isEx(by.card) && m.card.type === 'Darkness' && this.allMons(q).some((x) => x.card.powerKind === 'shadowyConcealment')) n = Math.max(0, n - 1);
+      let n = m.card.prizes || 1;
+      if (this.damageKOs?.has(m) && by && isEx(by.card) && m.card.type === 'Darkness' &&
+          this.allMons(q).some((x) => x.card.powerKind === 'shadowyConcealment' && this.powerOn(x))) n = Math.max(0, n - 1);
       return n + this.swshPrizeBonus(q, m);
     },
 
@@ -609,13 +610,14 @@ export function installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
     },
 
     // When a Pokémon is Knocked Out by an attack: Exp. Share.
-    megaOnKO(q, m) {
-      if (q.active !== m || !this.koBy) return;
-      const holder = q.bench.find((x) => tool(x, 'expShare'));
-      const en = m.energy.find(basicEnergy);
-      if (!holder || !en) return;
-      holder.energy.push(...m.energy.splice(m.energy.indexOf(en), 1));
-      this.log('log.expShare', { m: C(holder), from: C(m) }, 'status');
+    async megaOnKO(q, m) {
+      if (this.damageKOs?.get(m) !== true) return;
+      for (const holder of q.bench.filter((x) => x !== m && x.hpLeft > 0 && tool(x, 'expShare'))) {
+        const en = await this.chooseEnergy(q, m, m.energy.filter(basicEnergy), 'prompt.q.groundingWhich', `Move which basic Energy to ${holder.name} with Exp. Share?`, { none: true });
+        if (!en) continue;
+        holder.energy.push(...m.energy.splice(m.energy.indexOf(en), 1));
+        this.log('log.expShare', { m: C(holder), from: C(m) }, 'status');
+      }
     },
   });
 }

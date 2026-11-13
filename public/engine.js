@@ -748,7 +748,7 @@ export class Game {
       if (fx.bonusIfAttachedName && a.energy.some((en) => en.name === fx.bonusIfAttachedName.name)) base += fx.bonusIfAttachedName.n;
       if (fx.bonusIfDefEvolved && d.card.stage > 0) base += fx.bonusIfDefEvolved;
       if (fx.bonusIfEqualHands && me && me.hand.length === foe.hand.length) base += fx.bonusIfEqualHands;
-      if (fx.bonusIfKOLastTurn && me && this.koLastTurn(me)) base += fx.bonusIfKOLastTurn.n;
+      if (fx.bonusIfKOLastTurn && me && this.damageKOLastTurn(me)) base += fx.bonusIfKOLastTurn.n;
       if (fx.timesHand) base = fx.timesHand * (me ? me.hand.length : 0);
       if (fx.timesOwnInPlay) base = fx.timesOwnInPlay * (me ? this.allMons(me).length : 0);
       if (fx.timesAllEnergy) base = fx.timesAllEnergy * this.players.reduce((s, q) => s + this.allMons(q).reduce((t, x) => t + x.energyTypes.length, 0), 0);
@@ -841,19 +841,25 @@ export class Game {
   extraWater(m, atk) { return this.countType(m, 'Water') - atk.cost.filter((c) => c === 'Water').length;
   }
 
+  attackDamagePenalty(a) {
+    return 20 * a.energy.filter((en) => en.special === 'doubleTurbo').length + (a.effects.weaken?.n || 0);
+  }
+
   // `noWR`: Swift-like, ignores everything on the Defending Pokémon. `noWROnly`: skips only Weakness and Resistance.
   finalDamage(a, d, base, { noWR = false, noWROnly = false, noRes = false, ignoreDef = false, noWeakness = false } = {}) {
     const owner = this.ownerOf(a);
     const misty = (x) => (x > 0 && owner?.flags.misty && a.name.includes('Misty') ? x + 20 : x);
-    if (this.modern && base > 0) base = Math.max(0, base + this.modernAttackBonus(a)); // Double Turbo Energy can take some off
-    // Daunt: the Defending Pokémon's attacks do less damage (before Weakness and Resistance).
-    if (this.modern && base > 0 && a.effects.weaken) base = Math.max(0, base - a.effects.weaken.n);
+    if (this.modern && base > 0) base = Math.max(0, base + this.modernAttackBonus(a) - this.attackDamagePenalty(a));
     if (noWR) return { dmg: misty(base + (base > 0 ? 10 * a.toolCount('plusPower') : 0)), notes: ['noWR'] };
     let { d: dmg, notes } = noWROnly ? { d: base, notes: ['noWR'] } : this.damageCalc(a, d, base, { noRes, noWeakness, ignoreDef });
     if (dmg > 0) dmg += 10 * a.toolCount('plusPower');
     dmg = misty(dmg);
     // Pulverizing Press: nothing on the Defending Pokémon changes the damage.
-    if (ignoreDef) return { dmg, notes };
+    if (!ignoreDef) dmg = this.damageAfterDefenses(a, d, dmg, notes);
+    return { dmg, notes };
+  }
+
+  damageAfterDefenses(a, d, dmg, notes) {
     if (this.modern && dmg > 0) dmg = this.modernDefense(a, d, dmg, notes);
     if (dmg > 0 && d.toolCount('defender')) { dmg = Math.max(0, dmg - 20 * d.toolCount('defender')); notes.push('defender'); }
     if (dmg > 0 && d.effects.reduce) { dmg = Math.max(0, dmg - d.effects.reduce.n); notes.push('reduce'); }
@@ -862,14 +868,17 @@ export class Game {
     if (sh && sh.kind === 'harden' && dmg <= 30) { dmg = 0; notes.push('harden'); }
     // Strange Barrier: attacks by Basic Pokémon that would do 20 or more only do 10.
     if (dmg >= 20 && d.card.powerKind === 'strangeBarrier' && a.card.stage === 0 && this.powerOn(d)) { dmg = 10; notes.push('barrier10'); }
-    return { dmg, notes };
+    return dmg;
   }
 
   attackPreview(p, i) {
     const a = p.active, d = this.opp(p).active;
     const atk = this.attacksOf(a)[i], fx = atk.fx;
     const copied = atk.copied ? ' (copied by Psylink)' : '';
-    if (fx.lure) return `Attack ${atk.name}: ${atk.text} (no damage). Attacking ends your turn.`;
+    if (fx.lure) {
+      const damage = fx.fixedBase && this.opp(p).bench.length ? '' : ' (no damage).';
+      return `Attack ${atk.name}: ${atk.text}${damage} Attacking ends your turn.`;
+    }
     const [lo, hi] = this.baseRange(a, d, atk);
     const opts = { noWR: fx.noWR, noWROnly: fx.noWROnly, noRes: fx.noRes, ignoreDef: fx.ignoreDefEffects, noWeakness: fx.noWeakness };
     const L = this.finalDamage(a, d, lo, opts), H = this.finalDamage(a, d, hi, opts);
@@ -1462,26 +1471,38 @@ export class Game {
     p.until.lastAtk = { turn: this.turn, id: a.card.id, name: atk.name, gx: !!atk.fx.gx, atk: { ...atk } }; // Copycat (the attack itself: a TM's isn't on the card)
     // Both Active Pokémon step into the arena for the whole attack, coin flips included.
     await this.hooks.onAttack?.({ p: p.idx, from: a.id, to: d.id, atk: attackRef(atk), type: a.card.type });
-    this.attacking = a; // spread() knows this damage comes from an attack (shields, "takes less damage from attacks")
+    this.damageKOs = new Map();
     try {
-      await this.resolveAttack(p, atk);
+      this.attacking = a; // spread() knows this damage comes from an attack
+      try {
+        await this.resolveAttack(p, atk);
+      } finally {
+        this.attacking = null;
+        await this.hooks.onAttackEnd?.();
+      }
+      // Swallow Dive: record the attack after its own damage.
+      if (this.allMons(p).includes(a)) a.effects.lastAtk = { atk: atk.name, expires: this.turn + 2 };
+      if (this.modern) this.checkEnergyRules();
+      this.update();
+      this.koBy = a;
+      await this.handleKOs(p);
     } finally {
-      this.attacking = null;
-      await this.hooks.onAttackEnd?.();
+      this.koBy = null;
+      this.damageKOs = null;
     }
-    // Swallow Dive: "if this Pokémon used Agility during your last turn" (recorded after this attack's own damage).
-    if (this.allMons(p).includes(a)) a.effects.lastAtk = { atk: atk.name, expires: this.turn + 2 };
-    if (this.modern) this.checkEnergyRules();
-    this.update();
-    this.koBy = a;
-    await this.handleKOs(p);
-    this.koBy = null;
     await this.refillActive();
+  }
+
+  // Only damage that takes the target to zero HP qualifies for effects that require a damage Knock Out.
+  applyAttackDamage(m, n, active) {
+    const left = m.hpLeft;
+    m.damage += n;
+    if (left > 0 && m.hpLeft === 0) this.damageKOs?.set(m, active);
   }
 
   // Damage to several Pokémon at once (Benched damage never applies Weakness or Resistance).
   // Bench Guard: a Benched Brock's Rhydon takes 10 of the damage done to each of its owner's other Benched Pokémon.
-  async spread(src, list, { counters = false } = {}) {
+  async spread(src, list, { counters = false, ignoreDef = false } = {}) {
     const plan = new Map();
     const add = (m, n) => plan.set(m, (plan.get(m) || 0) + n);
     for (let [m, n] of list) {
@@ -1489,10 +1510,13 @@ export class Game {
       // From the opponent's attack: Agility / Detect / Stance (and Luminous Barrier) stop its damage and damage counters;
       // a Benched Pokémon still gets its "takes less damage from attacks" (the Active already got it through finalDamage).
       const fromAttack = !!src && this.attacking === src && !!q && this.ownerOf(src) !== q;
-      if (fromAttack && (m.effects.shield?.kind === 'all' || (this.modern && this.smBarrier(src, m)))) { this.log('log.barrier', { m: C(m) }, 'status'); continue; }
-      if (fromAttack && this.modern && !counters && n > 0 && q.bench.includes(m)) n = this.modernDefense(src, m, n, []);
+      if (fromAttack && !ignoreDef && (m.effects.shield?.kind === 'all' || (this.modern && this.smBarrier(src, m)))) { this.log('log.barrier', { m: C(m) }, 'status'); continue; }
+      if (fromAttack && !counters && n > 0 && q.bench.includes(m)) {
+        if (this.modern) n = Math.max(0, n - this.attackDamagePenalty(src));
+        if (!ignoreDef) n = this.damageAfterDefenses(src, m, n, []);
+      }
       if (this.modern && !counters && m.card.tera && q?.bench.includes(m)) { this.log('log.tera', { m: C(m) }, 'status'); continue; }
-      if (this.modern && !counters && src && q && this.ownerOf(src) !== q && !(await this.swshBenchShield(q, m, src, n))) continue; // Wave Veil, Infiltrator
+      if (this.modern && !counters && src && q && this.ownerOf(src) !== q && !(await this.swshBenchShield(q, m, src, n, { ignoreDef }))) continue; // Wave Veil, Infiltrator
       const guard = !counters && q && q.bench.includes(m) && n >= 10 &&
         q.bench.find((r) => r !== m && r.card.powerKind === 'benchGuard' && this.powerOn(r));
       // Bench Guard ("you may"): its owner decides; worth it unless it would Knock Out the Rhydon.
@@ -1503,9 +1527,17 @@ export class Game {
     }
     const hits = [...plan].filter(([, n]) => n > 0);
     await Promise.all(hits.map(([m, n]) => this.hit(src, m, n)));
+    const activeHits = [];
     for (const [m, n] of hits) {
-      m.damage += n;
-      if (!counters && this.attacking) m.hitTurn = this.turn; // damage from an attack (Wishful Baton, Energy Grounding)
+      const q = this.ownerOf(m);
+      if (!counters && src && src === this.attacking && q && q !== this.ownerOf(src)) {
+        this.applyAttackDamage(m, n, q.active === m);
+        if (q.active === m) activeHits.push([q, m]);
+      } else m.damage += n;
+    }
+    for (const [q, m] of activeHits) {
+      if (this.modern) await this.megaOnDamaged(q, m, src);
+      await this.onDamaged(q, m, src);
     }
   }
 
@@ -1571,16 +1603,20 @@ export class Game {
     if (fx.discard) await this.discardEnergyOfType(p, a, fx.discard.type, fx.discard.n, fx.discard.strict);
     if (fx.oncePerPlay) a.used[atk.name] = true;
     if (fx.cooldown) a.effects.cooldown = { atk: atk.name, expires: this.turn + 2 };
-    if (fx.flipFail && !(await flip(atk.base ? O('plus', { n: atk.base }) : O('attackGoes'), O('miss')))) return fail();
+    if (fx.flipFail) {
+      const [, headsBase] = this.baseRange(a, o.active, atk);
+      if (!(await flip(headsBase ? O('plus', { n: headsBase }) : O('zero'), O('miss')))) return fail();
+    }
 
-    if (fx.lure && o.bench.length) {
+    if (fx.lure) {
+      if (!o.bench.length) return fail();
       const t = await this.pickMon(p, 'lure', o.bench, 'prompt.lure.text', {}, "Choose one of the opponent's Benched Pokémon to pull into the Active Spot.", (x) => -x.hpLeft);
       this.swapActive(o, t);
       this.log('log.lure', { m: C(t) });
     }
 
     const d = o.active;
-    let base = this.baseRange(a, d, atk)[0];
+    let base = fx.lure ? fx.fixedBase || 0 : this.baseRange(a, d, atk)[0];
     if (fx.mirrorMove && !a.effects.lastHit) return fail();
     if (fx.flipAll) {
       for (let k = 0; k < fx.flipAll; k++)
@@ -1612,9 +1648,9 @@ export class Game {
       this.multiHeads = heads; // Triple Heads: all heads also protects the attacker
     } else if (fx.flipUntilTails) {
       let heads = 0;
-      while (heads < 20 && (await this.flip('untilTails', { atk: attackRef(atk), so: heads }, [O('plus', { n: atk.base }), O('stop')]))) heads++;
+      while (await this.flip('untilTails', { atk: attackRef(atk), so: heads }, [O('plus', { n: atk.base }), O('stop')])) heads++;
       base = atk.base * heads;
-    } else if (fx.flipFail) base = this.baseRange(a, d, atk)[1];
+    } else if (fx.flipFail || fx.riskyTails) base = this.baseRange(a, d, atk)[1];
     if (this.modern) base += await this.modernPreDamage(p, a, atk, fx);
     let risky = false;
     if (fx.riskyTails && !(await flip(O('attackGoes'), O('self', { m: C(a), n: fx.riskyTails })))) { base = 0; risky = true; }
@@ -1627,7 +1663,7 @@ export class Game {
     let dealt = 0, fled = false;
     // Agility / Detect / Luminous Barrier: no damage or effects. Damage that "isn't affected by any effects on your
     // opponent's Active Pokémon" (G-Max One Blow, Max Miracle, modern Swift) still goes through, the effects don't.
-    const ignoreDef = fx.ignoreDefEffects || (this.modern && fx.noWR);
+    const ignoreDef = fx.ignoreDefEffects || fx.noWR;
     const shielded = d.effects.shield?.kind === 'all' || (this.modern && this.smBarrier(a, d));
     const barrier = shielded && !ignoreDef;
     if (barrier) {
@@ -1639,9 +1675,9 @@ export class Game {
         if (surge > 0 && dmg > 0) dmg += 10;
         if (this.modern && dmg > 0 && !ignoreDef) dmg = await this.swshBeforeDamage(a, d, dmg, notes); // Infiltrator
         await this.hit(a, d, dmg, notes);
-        d.damage += dmg;
+        this.applyAttackDamage(d, dmg, true);
         dealt = dmg;
-        if (dmg > 0) { d.effects.lastHit = { expires: this.turn + 1, dmg, statuses: [] }; d.hitTurn = this.turn; }
+        if (dmg > 0) d.effects.lastHit = { expires: this.turn + 1, dmg, statuses: [] };
         this.log('log.damage', { m: C(d), n: dmg, notes: notes.map((n) => ({ $note: n })) }, 'dmg');
         if (dmg > 0) this.learn('dice');
         if (notes.includes('weakness')) this.learn('weakness', { m: C(d), t: { $type: a.card.type } });
@@ -1694,7 +1730,7 @@ export class Game {
     for (const s of statuses(fx.status)) this.applyStatus(d, s);
     if (fx.flipStatus && (await flip(stOpt(fx.flipStatus), O('nothing')))) {
       for (const s of statuses(fx.flipStatus)) this.applyStatus(d, s);
-      if (fx.toxic) { d.status.poisoned = 2; this.log('log.toxic', { m: C(d) }, 'status'); }
+      if (fx.toxic && d.status.poisoned) { d.status.poisoned = 2; this.log('log.toxic', { m: C(d) }, 'status'); }
     }
     if (heads1 && fx.headsStatus) this.applyStatus(d, fx.headsStatus);
     if (heads1 === false && fx.tailsStatus) this.applyStatus(d, fx.tailsStatus); // Headlock
@@ -1792,7 +1828,7 @@ export class Game {
       if (heads) {
         await this.discardEnergyOfType(p, a, 'Fire', heads);
         const all = this.allMons(o);
-        await this.spread(a, all.map((x) => [x, 10 * heads]));
+        await this.spread(a, all.map((x) => [x, x === o.active ? this.finalDamage(a, x, 10 * heads, { noWROnly: true }).dmg : 10 * heads]));
         this.log('log.spiral', { n: 10 * heads }, 'dmg');
       } else this.log('log.failed', { atk: attackRef(atk) });
     }
@@ -1806,14 +1842,16 @@ export class Game {
       const t = await this.pickMon(p, 'snipe', targets, 'prompt.q.snipeAny', { c: attackRef(atk), n: fx.snipeAny.n }, `Choose any of the opponent's Pokémon to take ${fx.snipeAny.n} damage (no Weakness or Resistance).`,
         (x) => (x.hpLeft <= fx.snipeAny.n ? 50 : 0) + (fx.snipeAny.noPower && x.card.powerKind ? 20 : 0) - x.hpLeft / 10);
       if (t && (!fx.snipeAny.flip || (await flip(O('benchHitOne', { m: C(t), n: fx.snipeAny.n }), O('nothing'))))) {
-        const n = this.modern && t === o.active && !fx.snipeAny.noWR ? this.finalDamage(a, t, fx.snipeAny.n).dmg : fx.snipeAny.n;
-        await this.spread(a, [[t, n]]);
+        const noWR = !!fx.snipeAny.noWR;
+        const active = t === o.active;
+        const n = active ? this.finalDamage(a, t, fx.snipeAny.n, { noWR, noWROnly: !this.modern }).dmg : fx.snipeAny.n;
+        await this.spread(a, [[t, n]], { ignoreDef: noWR });
         this.log('log.benchSnipe', { n, list: C(t) }, 'dmg');
-        if (fx.snipeAny.noPower && t.card.powerKind) { t.effects.noPower = { expires: this.turn + 1 }; this.log('log.noPower', { m: C(t) }, 'status'); }
+        if (fx.snipeAny.noPower && t.card.powerKind && (!active || t === o.active) && !this.effectsBlocked(t)) { t.effects.noPower = { expires: this.turn + 1 }; this.log('log.noPower', { m: C(t) }, 'status'); }
       }
     }
     if (fx.spiral) {
-      await this.spread(a, this.allMons(o).map((x) => [x, this.modern && x === o.active ? this.finalDamage(a, x, fx.spiral).dmg : fx.spiral]));
+      await this.spread(a, this.allMons(o).map((x) => [x, x === o.active ? this.finalDamage(a, x, fx.spiral, { noWROnly: !this.modern }).dmg : fx.spiral]));
       this.log('log.spiral', { n: fx.spiral }, 'dmg');
     }
     if (fx.benchNonType) {
@@ -1926,10 +1964,11 @@ export class Game {
     const kos = [];
     for (const p of this.players) for (const m of this.allMons(p)) if (m.damage >= m.maxHp) kos.push([p, m]);
     if (!kos.length) return;
+    for (const [p, m] of kos) m.prizeValue = this.modern ? this.prizeValue(p, m) : 1;
     for (const [p, m] of kos) {
       this.log('log.ko', { m: C(m), P: PL(p) }, 'ko', p.idx);
       if (this.current !== p) p.koTurn = this.turn; // "during your opponent's last turn" (Bruno, Gym Trainer): not overwritten by KOs on p's own turn
-      m.prizeValue = this.modern ? this.prizeValue(p, m) : 1;
+      if (this.damageKOs?.has(m)) p.until.damageKOTurn = this.turn;
       if (this.modern) {
         await this.modernOnKO(p, m);
         if (m.card.prizes > 1) this.learn('multiPrize', { n: m.card.prizes });
@@ -2079,7 +2118,7 @@ const SPECIAL_EN = {
 const TTYPE_EN = { item: 'Item', supporter: 'Supporter (only 1 per turn)', stadium: 'Stadium', tool: 'Pokémon Tool' };
 // The Basic a Stage 1 Pokémon evolves from (Rare Candy needs to look two steps back).
 const evolvesFromOf = (name) => Object.values(CARDS).find((c) => c.kind === 'pokemon' && c.name === name && c.stage === 1)?.evolvesFrom;
-installModern(Game, { Mon, shuffle, C, PL, isBasic, MAX_BENCH, evolvesFromOf });
+installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_BENCH, evolvesFromOf });
 installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH });
 installSwsh(Game, { Mon, shuffle, C, isBasic, MAX_BENCH });
 installSwshV(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH });

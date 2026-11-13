@@ -4,7 +4,7 @@
 // Everything here only runs when `game.modern` is true (both players use modern decks).
 
 import { attackRef, powerRef } from './content-i18n/refs.js';
-export function installModern(Game, { Mon, shuffle, C, PL, isBasic, MAX_BENCH, evolvesFromOf }) {
+export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_BENCH, evolvesFromOf }) {
   const TOOL_FOREVER = 1e9;
   const isTR = (m) => m.name.startsWith("Team Rocket's");
   const tool = (m, k) => m.tools.some((t) => t.card.tool === k);
@@ -17,6 +17,7 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, MAX_BENCH, e
     // Leafy Camo Poncho: a Pokémon VSTAR or VMAX wearing it ignores the effects of the opponent's Supporters.
     poncho(m) { return !!m && tool(m, 'leafyCamoPoncho') && (m.card.tags?.includes('VMAX') || m.card.tags?.includes('VSTAR')); },
     koLastTurn(p) { return p.koTurn === this.turn - 1; },
+    damageKOLastTurn(p) { return p.until.damageKOTurn === this.turn - 1; },
     hasTool(m, k) { return tool(m, k); },
 
     // Attack effects can't touch this Pokémon (Flare Veil, Repelling Veil, Oracle Press, and Agility / Detect / Stance:
@@ -673,7 +674,7 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, MAX_BENCH, e
       }
       if (fx.flipUntilTailsBonus) {
         let heads = 0;
-        while (heads < 20 && (await this.flip('untilTails', { atk: attackRef(atk), so: heads }, [{ key: 'coin.o.plus', params: { n: fx.flipUntilTailsBonus } }, { key: 'coin.o.stop', params: {} }]))) heads++;
+        while (await this.flip('untilTails', { atk: attackRef(atk), so: heads }, [{ key: 'coin.o.plus', params: { n: fx.flipUntilTailsBonus } }, { key: 'coin.o.stop', params: {} }])) heads++;
         bonus += fx.flipUntilTailsBonus * heads;
       }
       bonus += await this.megaPreDamage(p, a, atk, fx);
@@ -688,7 +689,7 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, MAX_BENCH, e
         a.effects.cooldownAll = { expires: this.turn + 2 };
         this.log('log.cooldownAll', { m: C(a) }, 'status');
       }
-      if (fx.bonusIfKOLastTurn?.status && this.koLastTurn(p) && d && o.active === d && !this.effectsBlocked(d)) this.applyStatus(d, fx.bonusIfKOLastTurn.status);
+      if (fx.bonusIfKOLastTurn?.status && this.damageKOLastTurn(p) && d && o.active === d && !this.effectsBlocked(d)) this.applyStatus(d, fx.bonusIfKOLastTurn.status);
       if (fx.noAttackIfBasic && d && this.allMons(o).includes(d) && d.card.stage === 0 && !this.effectsBlocked(d)) { d.effects.noAttackAll = { expires: this.turn + 1 }; this.log('log.noAttackAll', { m: C(d) }, 'status'); }
       if (fx.shieldEffects) { a.effects.noEffects = { expires: this.turn + 1 }; this.log('log.noEffectsOn', { m: C(a) }, 'status'); }
       if (fx.callAny && p.bench.length < MAX_BENCH) {
@@ -707,7 +708,7 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, MAX_BENCH, e
         if (t) await this.heal(t, fx.healAny);
       }
       if (fx.attachDiscardAny) await this.attachFromDiscard(p, this.allMons(p), fx.attachDiscardAny.n, (x) => basicEnergy(x) && (!fx.attachDiscardAny.type || x.energyType === fx.attachDiscardAny.type), attackRef(atk), { upTo: /up to/i.test(atk.text || '') });
-      if (fx.attachDiscardBench && p.bench.length) await this.attachFromDiscard(p, p.bench, 1, (x) => basicEnergy(x) && (!fx.attachDiscardBench.type || x.energyType === fx.attachDiscardBench.type), attackRef(atk));
+      if (fx.attachDiscardBench && p.bench.length) await this.attachFromDiscard(p, p.bench, fx.attachDiscardBench.n ?? 1, (x) => basicEnergy(x) && (!fx.attachDiscardBench.type || x.energyType === fx.attachDiscardBench.type), attackRef(atk), { upTo: /up to/i.test(atk.text) });
       if (fx.searchBasicEnergy) {
         let n = 0;
         for (let k = 0; k < fx.searchBasicEnergy.n; k++) {
@@ -730,15 +731,17 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, MAX_BENCH, e
         this.plog(p, 'log.energiesFound', { n });
       }
       if (fx.searchAttachBench && p.bench.length) {
-        for (let k = 0; k < fx.searchAttachBench.n; k++) {
-          // Helping Hand: any basic Energy (the player chooses which).
-          const en = fx.searchAttachBench.type ? p.deck.find((x) => basicEnergy(x) && x.energyType === fx.searchAttachBench.type)
-            : await this.pickCard(p, 'search', p.deck.filter(basicEnergy), 'prompt.q.searchEnergy', { c: attackRef(atk) }, 'Choose a basic Energy to attach.', { ai: () => 1 });
+        const { type, n } = fx.searchAttachBench;
+        const upTo = /up to/i.test(atk.text);
+        const eligible = (x) => basicEnergy(x) && (!type || x.energyType === type);
+        for (let k = 0; k < n; k++) {
+          const en = await this.pickCard(p, 'search', p.deck.filter(eligible), 'prompt.q.searchEnergy', { c: attackRef(atk) }, 'Choose a basic Energy to attach.', { none: upTo, ai: () => 1 });
           if (!en) break;
-          const t = await this.pickMon(p, 'attachTo', p.bench, 'prompt.q.attachTo', { c: attackRef(atk) }, 'Attach the Energy to which Benched Pokémon?', (x) => -this.energyGap(x) * -1);
+          const t = await this.pickMon(p, 'attachTo', p.bench, 'prompt.q.attachTo', { c: attackRef(atk) }, 'Attach the Energy to which Benched Pokémon?', (x) => this.energyGap(x));
           await this.hooks.onAttach?.({ p: p.idx, mon: t.id, card: en });
-          t.energy.push(this.searchDeck(p, en));
+          t.energy.push(...p.deck.splice(p.deck.indexOf(en), 1));
         }
+        shuffle(p.deck);
       }
       if (fx.coordinatedPack) {
         for (const b of p.bench.filter((x) => x.name === 'Houndour')) {
@@ -811,10 +814,13 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, MAX_BENCH, e
       }
       if (fx.moonglowReverse) {
         const mine = this.allMons(p).filter((x) => x.damage);
-        const t = await this.pickMon(p, 'snipe', this.allMons(o).filter((x) => !this.effectsBlocked(x)), 'prompt.q.counters', { c: attackRef(atk), n: 2 * mine.length }, "Move the damage counters onto which of the opponent's Pokémon?", (x) => -x.hpLeft);
-        let n = 0;
-        for (const x of mine) { const k = Math.min(20, x.damage); x.damage -= k; n += k; }
-        if (t && n) { await this.spread(a, [[t, n]], { counters: true }); this.log('log.counters', { n: n / 10, list: C(t) }, 'dmg'); }
+        const n = mine.reduce((sum, x) => sum + Math.min(20, x.damage), 0);
+        const t = n && await this.pickMon(p, 'snipe', this.allMons(o).filter((x) => !this.effectsBlocked(x) && !this.smBarrier(a, x)), 'prompt.q.counters', { c: attackRef(atk), n: n / 10 }, "Move the damage counters onto which of the opponent's Pokémon?", (x) => -x.hpLeft);
+        if (t) {
+          for (const x of mine) x.damage -= Math.min(20, x.damage);
+          await this.spread(a, [[t, n]], { counters: true });
+          this.log('log.counters', { n: n / 10, list: C(t) }, 'dmg');
+        }
       }
       if (fx.tmEvolution) {
         // Up to 2 Benched Pokémon evolve straight from the deck.
@@ -838,6 +844,7 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, MAX_BENCH, e
           const top = x.stack.pop();
           o.hand.push(top);
           x.status = {};
+          x.effects = {};
           this.log('log.devolved', { m: C(top), to: C(x) }, 'status');
         }
       }
@@ -875,14 +882,16 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, MAX_BENCH, e
 
     // When a Pokémon is Knocked Out by an attack: Electrical Grounding.
     async modernOnKO(q, m) {
-      this.megaOnKO(q, m);
+      if (!this.damageKOs?.has(m)) return;
+      await this.megaOnKO(q, m);
       await this.smOnKO(q, m); // Wishful Baton, Energy Grounding
-      if (!m.energy.some((en) => en.energyType === 'Lightning')) return;
-      const r = q.bench.find((x) => x !== m && x.card.powerKind === 'electricalGrounding' && this.powerOn(x));
-      if (!r) return;
-      const i = m.energy.findIndex((en) => en.energyType === 'Lightning');
-      r.energy.push(...m.energy.splice(i, 1));
-      this.log('log.grounding', { m: C(r), from: C(m) }, 'status');
+      for (const r of this.allMons(q).filter((x) => x !== m && x.hpLeft > 0 && x.card.powerKind === 'electricalGrounding' && this.powerOn(x))) {
+        const pool = m.energy.filter((en) => isType(en.energyType, 'Lightning'));
+        const en = await this.chooseEnergy(q, m, pool, 'prompt.q.electricalGroundingWhich', `Move which Lightning Energy to ${r.name}?`, { none: true, params: { to: C(r) } });
+        if (!en) continue;
+        r.energy.push(...m.energy.splice(m.energy.indexOf(en), 1));
+        this.log('log.grounding', { m: C(r), from: C(m) }, 'status');
+      }
     },
   });
 }
