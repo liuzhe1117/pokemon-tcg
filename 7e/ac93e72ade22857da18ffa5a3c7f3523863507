@@ -1,0 +1,56 @@
+public/engine-mega.js
+  s_7e4de9c6911c0d::t_f0326add355270 63-65,613-620
+public/engine-modern.js
+  s_1702ae438ae926::t_d0dfc76fc34088 7,20,677,692,711,734-738,740,742,744,817-823,847,885-886,888-894
+public/engine-sm.js
+  s_1702ae438ae926::t_70dec827fde9b2 65,588,590-594,603,735
+public/engine-swsh-v.js
+  s_7e4de9c6911c0d::t_72831d468e8bc0 45,47,56,732
+public/engine-swsh.js
+  s_1702ae438ae926::t_28460b531dbc63 255
+public/engine.js
+  s_7e4de9c6911c0d::t_af5dccf1a38718 751,844-847,852,858-862,871,878-881,1474,1476-1488,1490-1492,1494-1500,1505,1513-1517,1519,1530,1532-1540,1606-1609,1611-1612,1619,1651,1653,1666,1678,1680,1733,1831,1845-1848,1850,1854,1967,1971,2121
+public/i18n/en.js
+  s_1702ae438ae926::t_42001f6a2a136f 103,621,752,1044
+public/i18n/es.js
+  s_1702ae438ae926::t_86a9285c3e898e 181,993,1212,1588
+public/i18n/ja.js
+  s_1702ae438ae926::t_f0c2362d7df68f 179,991,1210,1586
+public/i18n/tr.js
+  s_1702ae438ae926::t_f87776d46147bd 100,615,746,1038
+public/i18n/zh-Hans.js
+  s_1702ae438ae926::t_c89b0040f82dbf 198,1010,1229,1605
+public/i18n/zh-Hant.js
+  s_1702ae438ae926::t_95aa06f0b32d80 199,1011,1230,1606
+public/ui.js
+  s_1702ae438ae926::t_75b470aaac3a62 1476,1549,1566-1569,1755
+tests/prizes.mjs
+  s_1702ae438ae926::t_eaac39ee74795f 14-18
+tests/rules.mjs
+  s_1702ae438ae926::t_b63f00521a2cac 34,109-164,333-342,438,831-833,1347-1483
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "7eac93e72ade22857da18ffa5a3c7f3523863507",
+  "prompts": {},
+  "logical_commit_id": "7eac93e72ade22857da18ffa5a3c7f3523863507",
+  "sessions": {
+    "s_1702ae438ae926": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1d0ef-fd4d-7471-ae41-44a827ffaa55",
+        "model": "unknown"
+      },
+      "human_author": "liuzhe1117 <liuzhe1117@gmail.com>"
+    },
+    "s_7e4de9c6911c0d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1cf59-17f9-72d3-92f4-83e5bc9e37f9",
+        "model": "unknown"
+      },
+      "human_author": "liuzhe1117 <liuzhe1117@gmail.com>"
+    }
+  }
+}
