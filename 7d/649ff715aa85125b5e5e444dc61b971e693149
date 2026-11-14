@@ -1,0 +1,134 @@
+.gitignore
+  s_1702ae438ae926::t_aa6801a94c04ea 5
+README.md
+  s_52db4349edd008::t_847c02a916477c 39-40,105-109
+package.json
+  s_1702ae438ae926::t_6772d07132bddc 8-13
+public/ai-combat.js
+  s_52db4349edd008::t_5b7649e2e75704 1-453
+public/ai-discard.js
+  s_7e4de9c6911c0d::t_31259970e219ea 1-276
+public/ai-hard.js
+  s_52db4349edd008::t_04eb0b514f32f5 1-717
+public/ai-plan.js
+  s_7e4de9c6911c0d::t_073a5b63a64093 1-338
+public/ai-position.js
+  s_52db4349edd008::t_13b6379b10adba 1-464
+public/ai-prizes.js
+  s_52db4349edd008::t_80fdb8f904c065 1-422
+public/ai-redraw.js
+  s_52db4349edd008::t_31f512c8928852 1-188
+public/ai-search.js
+  s_52db4349edd008::t_7c0becb03d30af 1-58
+public/ai-setup.js
+  s_7e4de9c6911c0d::t_099be7b6a03274 1-121
+public/ai-v3-current.js
+  s_52db4349edd008::t_b64c810f1b028d 1-287
+public/ai-v3-defense.js
+  s_52db4349edd008::t_1a485a9c0042aa 1-103
+public/ai-v3-energy-removal.js
+  s_52db4349edd008::t_fc4e953420c02f 1-65
+public/ai-v3-opponent-trainers.js
+  s_52db4349edd008::t_5e6038b8b6b332 1-58
+public/ai-v3-recovery.js
+  s_52db4349edd008::t_8aa6255cdcac90 1-87
+public/ai-v3-safety.js
+  s_52db4349edd008::t_6a2a3a9b12b002 1-70
+public/ai-v3-search-order.js
+  s_52db4349edd008::t_cf8a3ff2593a77 1-66
+public/ai-v3-selection.js
+  s_52db4349edd008::t_975daf8cee5aee 1-78
+public/ai-v3-strategy.js
+  s_52db4349edd008::t_73bfc1488740c0 1-304
+public/ai-v3-tactics.js
+  s_52db4349edd008::t_949ff593e6a2e1 1-209
+public/ai-v3-targets.js
+  s_52db4349edd008::t_139499a60a500d 1-104
+public/ai-v3-tools.js
+  s_52db4349edd008::t_db10925fd9d282 1-187
+public/ai-v3.js
+  s_52db4349edd008::t_c95a34ebd635f0 1-453
+public/ai.js
+  s_52db4349edd008::t_a0de92f82ce4c2 6-7,10,114-123,399-413,416-420,422-428,452-455,466-477,481-482
+public/engine-mega.js
+  s_52db4349edd008::t_b540094585f454 6,61-62,64-66,90,116,121,126,146,208,227,262,266,304,361,376,378,391,399,401,405,407-408,412,418-420,428,435,439,460,471,486,494,517,574,578,585,597,599,603
+public/engine-modern.js
+  s_52db4349edd008::t_ef3af9f2d25712 7,178-179,184,188,192,201,213,232,236,245,251,288,291,299,303,312,348,380,389,393,451,455,459,468,474,501,515-516,552,559,576,578,581,585,611,621,642-644,700,705,718,722,728,740,742,746,755,762,770,799,837,841
+public/engine-sm.js
+  s_7e4de9c6911c0d::t_c004bde4b7f473 6,114,116,122,145,147,155,166-167,184,189,194,196,203,210,268,273,279,284,301,303,310,325,345,365,389,398,454,471,475,483,500,534,541,670,674,680,684,699,714,716,744,752,766
+public/engine-swsh-v.js
+  s_1702ae438ae926::t_9e3ca2b6734012 6,55-56,161,177,195,201,207,209,214,217,230,263,268,342,344,404,415,419,433,465,472,487,494,507,524-526,530,537,552,562,577-579,586,592,702,712,717,719,724,733,740,774,778,796
+public/engine-swsh.js
+  s_1702ae438ae926::t_c832fe18cb41d2 6,47,64,79,87,102,127,131,155,262,279
+public/engine.js
+  s_52db4349edd008::t_a17376e534735f 15,17,37,41,65,68-70,87,107-108,110,128-132,168-185,197-198,200,203,207,210,218,224,230,238,240-241,252-263,358,377,384,400-401,439,518,520-521,529-558,949,1093,1110-1115,1165,1170,1183,1186,1192,1216,1235,1289,1397,1419-1422,1443,1451-1453,1468-1469,1479,1481-1485,1489,1510,1516,1644-1645,1652-1655,1938-1940,2004,2063,2175-2179
+public/i18n/en.js
+  s_52db4349edd008::t_31795e8a699937 181-191,193,197,199,201
+public/i18n/es.js
+  s_52db4349edd008::t_1f7361d49090cf 276-286,293,301,303,305
+public/i18n/ja.js
+  s_52db4349edd008::t_f8a6b35beab755 274-284,291,299,301,303
+public/i18n/tr.js
+  s_52db4349edd008::t_15741e618563fe 178-188,190,194,196,198
+public/i18n/zh-Hans.js
+  s_52db4349edd008::t_682533244dea61 293-303,310,318,320,322,2248,2251,2293
+public/i18n/zh-Hant.js
+  s_52db4349edd008::t_ec8831345a562c 294-304,311,319,321,323,2249,2252,2294
+public/index.html
+  s_52db4349edd008::t_b1444265f74cf2 88-111
+public/style.css
+  s_52db4349edd008::t_08e06ae9f7ee2d 1420-1428
+public/ui.js
+  s_52db4349edd008::t_a2498d9f327b78 762,781,783-784,1978,1982-1983,2033-2042,2054,2065-2067,2069-2087,2094-2107,2114,2413-2418,2768-2811
+scripts/bench-gary.mjs
+  s_52db4349edd008::t_90ff4091f6b262 1-181
+scripts/gary-arena.mjs
+  s_52db4349edd008::t_a9956a0fe592c0 1-352
+scripts/gary-iterate-full.mjs
+  s_7e4de9c6911c0d::t_956824c447ebbe 1-255
+scripts/gary-iterate.mjs
+  s_7e4de9c6911c0d::t_dbfad2a587ef31 1-130
+scripts/gary-policy-experiments.mjs
+  s_7e4de9c6911c0d::t_594db0a907e7cb 1-111
+scripts/gary-review.mjs
+  s_52db4349edd008::t_5edb94fc2e43ec 1-226
+tests/ai-hard.mjs
+  s_52db4349edd008::t_efca604a897f0b 1-3150
+tests/rules.mjs
+  s_52db4349edd008::t_3ff924495f0443 16,34,149,151-152,160,1496-1532
+web/landing.js
+  s_52db4349edd008::t_740324683e9511 29,32,74,91,94,136,153,156,198,215,218,260
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "7d649ff715aa85125b5e5e444dc61b971e693149",
+  "prompts": {},
+  "logical_commit_id": "7d649ff715aa85125b5e5e444dc61b971e693149",
+  "sessions": {
+    "s_1702ae438ae926": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1d0ef-fd4d-7471-ae41-44a827ffaa55",
+        "model": "unknown"
+      },
+      "human_author": "liuzhe1117 <liuzhe1117@gmail.com>"
+    },
+    "s_52db4349edd008": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1d36b-5c38-7c22-b5f9-792e33ffd5d5",
+        "model": "unknown"
+      },
+      "human_author": "liuzhe1117 <liuzhe1117@gmail.com>"
+    },
+    "s_7e4de9c6911c0d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1cf59-17f9-72d3-92f4-83e5bc9e37f9",
+        "model": "unknown"
+      },
+      "human_author": "liuzhe1117 <liuzhe1117@gmail.com>"
+    }
+  }
+}
