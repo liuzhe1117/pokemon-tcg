@@ -36,8 +36,8 @@
 ### Play in your browser
 
 **[pokemon.space.fast](https://pokemon.space.fast)**: the landing page, and the game itself at [/play](https://pokemon.space.fast/play/).
-The browser version plays with the built-in CPU engine and needs nothing installed. For smarter opponents (Kev on your Mac, Jev in
-the cloud) and offline play, install the macOS app.
+The browser version plays with the built-in CPU engine and needs nothing installed. The macOS app also offers Kev on your Mac,
+Jev in the cloud, and offline play.
 
 ### macOS app
 
@@ -102,6 +102,11 @@ Gary and the Professor think with the engine you pick in **Settings** (the gear 
 | **CPU** | A rule-based player built into the game | Nothing. Works offline |
 | **Local model** | An open decision model from Hugging Face, downloaded once and run on your machine | [uv](https://docs.astral.sh/uv/), disk space and RAM for the model. Works offline after the download |
 | **Jev** | TypeSafe's hosted decision model | Internet and a Jev API key. The app stores the key in the macOS Keychain; the web version stores it in `.env` and never sends it back to the browser |
+
+In CPU mode, Settings lets you choose Gary’s play style and the Professor’s recommendations independently. **V1** scores each
+legal move. **V2** looks ahead a few moves for tactical combinations. **V3 · Turn planning** also compares the order of Trainer
+plays, Energy attachments, and switches, and weighs Prize trades and the risk of running out of cards. The Professor uses the
+same board evaluation to estimate your chances of winning at every CPU version.
 
 | Local model | Download | Notes |
 | --- | --- | --- |

@@ -759,7 +759,7 @@ const GB = (b) => (b / 1e9).toFixed(1);
 
 function engineLabel(e = engine) {
   if (!e) return '…';
-  if (e.engine === 'cpu') return t('eng.badge.cpu');
+  if (e.engine === 'cpu') return t('eng.badge.cpu') + ' ' + aiConfig.garyVersion.toUpperCase();
   if (e.engine === 'jev') return t(online() ? 'eng.badge.jev' : 'eng.badge.offline');
   const m = e.models.find((x) => x.id === e.model);
   if (e.local.status === 'ready') return t('eng.badge.local', { m: m?.name });
@@ -778,7 +778,10 @@ function applyEngine(e) {
   // Gary uses the model only once it is ready; until then the CPU engine plays.
   // Jev is hosted: offline, the CPU engine plays until the connection is back (local models work offline).
   const usable = e.engine === 'jev' ? e.jevKeySet && online() : e.engine === 'local' ? e.local.status === 'ready' : false;
+  const previous = aiConfig.engine;
   aiConfig.engine = usable ? 'model' : 'cpu';
+  $('#cpu-versions').hidden = aiConfig.engine !== 'cpu';
+  if (aiConfig.engine !== previous) refreshCoachRecommendation();
   $('#engine-badge').textContent = engineLabel(e);
   $('#engine-badge').classList.toggle('busy', e.engine === 'local' && e.local.status !== 'ready');
   const m = e.models.find((x) => x.id === e.model);
@@ -1972,11 +1975,12 @@ function renderDecision() {
   const box = $('#actions');
   box.innerHTML = '';
   $('#end-slot').innerHTML = '';
+  const showHints = $('#opt-hints').checked;
   const button = (a) => {
     const b = document.createElement('button');
     b.className = `act k-${a.kind}`;
-    const prob = ranking && $('#opt-hints').checked ? ranking.probabilities[a.key] ?? 0 : null;
-    const best = prob != null && a.key === ranking.choice;
+    const prob = showHints && ranking?.probabilities ? ranking.probabilities[a.key] ?? 0 : null;
+    const best = showHints && a.key === ranking?.choice;
     if (best) b.classList.add('best');
     const offType = a.kind === 'energy' && isOffType(a);
     const note = offType ? `<span class="note" title="${esc(t('tip.offType'))}">${esc(t('ui.onlyColorless'))}</span>` : '';
@@ -2026,12 +2030,20 @@ function clearActions(html = '') {
 }
 
 class HumanController {
-  constructor(myGame) { this.myGame = myGame; this.n = 0; this.lastWinTurn = -1; }
+  constructor(myGame) {
+    this.myGame = myGame;
+    this.n = 0;
+    this.lastWinTurn = -1;
+    this.coach = new AIController({ version: () => aiConfig.coachVersion });
+  }
+
+  observeDeck(g, p, counts) { this.coach.observeDeck(g, p, counts); }
+  observePrize(g, p, card) { this.coach.observePrize(g, p, card); }
+  observePrizes(g, p) { this.coach.observePrizes(g, p); }
 
   async chooseAction(g, p, actions) {
     if (this.myGame !== gameId) return stale();
     if (!tourDone()) await runTour();
-    const id = ++this.n;
     return new Promise((resolve) => {
       decision = {
         actions, p, ranking: null,
@@ -2039,6 +2051,7 @@ class HumanController {
           highlight(a, false);
           rememberForUndo(g, a);
           const ranking = decision.ranking;
+          if (ranking?.choice !== a.key) this.coach.clearPlan(g);
           decision = null;
           if (drag) endDrag(true);
           markPlayable();
@@ -2049,38 +2062,56 @@ class HumanController {
         },
       };
       renderDecision();
+      this.rankDecision(g, p, actions);
+    });
+  }
 
-      if (!$('#opt-coach').checked && !$('#opt-hints').checked) return;
-      const withWin = this.lastWinTurn !== g.turn;
-      coachMsg('coach.thinking');
-      rankActions(g, p, actions, { withWinChance: withWin }).then((r) => {
-        if (id !== this.n || this.myGame !== gameId || !decision) return;
-        if (withWin && r.win) { this.lastWinTurn = g.turn; showWin(r.win); }
-        decision.ranking = r.action;
-        renderDecision();
-        if ($('#opt-hints').checked) {
-          const best = actions.find((a) => a.key === r.action.choice);
-          coachMsg('coach.suggests', { a: { $t: best.label }, p: pct(r.action.probabilities[r.action.choice] ?? 0) });
-        } else coachMsg('coach.ready');
-      }).catch((err) => coachMsg('coach.unavailable', { e: err.message }, 'bad'));
+  rankDecision(g, p, actions) {
+    const id = ++this.n;
+    if (!$('#opt-coach').checked && !$('#opt-hints').checked) return;
+    const withWin = this.lastWinTurn !== g.turn;
+    const current = () => id === this.n && this.myGame === gameId && decision;
+    coachMsg('coach.thinking');
+    rankActions(g, p, actions, { withWinChance: withWin, coach: this.coach }).then((r) => {
+      if (!current()) return;
+      if (withWin && r.win) { this.lastWinTurn = g.turn; showWin(r.win); }
+      decision.ranking = r.action;
+      renderDecision();
+      const best = actions.find((a) => a.key === r.action.choice);
+      if ($('#opt-hints').checked && best) {
+        const a = { $t: best.label };
+        if (r.action.probabilities) coachMsg('coach.suggests', { a, p: pct(r.action.probabilities[best.key] ?? 0) });
+        else coachMsg('coach.recommends', { a });
+      } else coachMsg(r.action.probabilities ? 'coach.ready' : 'coach.moveReady');
+    }).catch((err) => {
+      if (current()) coachMsg('coach.unavailable', { e: err.message }, 'bad');
     });
   }
 
   feedback(chosen, actions, ranking) {
     if (!ranking) return coachMsg('coach.tooFast');
     const best = actions.find((a) => a.key === ranking.choice);
-    const pc = ranking.probabilities[chosen.key] ?? 0, pb = ranking.probabilities[ranking.choice] ?? 0;
-    let key, cls;
-    if (chosen.key === ranking.choice) { key = 'coach.agree'; cls = 'good'; }
-    else if (pc >= pb * 0.5) { key = 'coach.ok'; cls = 'meh'; }
-    else { key = 'coach.bad'; cls = 'bad'; }
-    const params = { a: { $t: chosen.label }, b: { $t: best.label }, pb: pct(pb), pc: pct(pc) };
+    if (!best) return;
+    let key, cls, params;
+    if (!ranking.probabilities) {
+      const matched = chosen === best;
+      key = matched ? 'coach.agree' : 'coach.recommends';
+      cls = matched ? 'good' : 'meh';
+      params = { a: { $t: best.label } };
+    } else {
+      const pc = ranking.probabilities[chosen.key] ?? 0, pb = ranking.probabilities[best.key] ?? 0;
+      if (chosen === best) { key = 'coach.agree'; cls = 'good'; }
+      else if (pc >= pb * 0.5) { key = 'coach.ok'; cls = 'meh'; }
+      else { key = 'coach.bad'; cls = 'bad'; }
+      params = { a: { $t: chosen.label }, b: { $t: best.label }, pb: pct(pb), pc: pct(pc) };
+    }
     coachMsg(key, params, cls);
     log({ key: 'coach.prefix', params: { m: { $t: { key, params } } }, kind: 'coach' });
   }
 
   choose(g, p, prompt) {
     if (this.myGame !== gameId) return stale();
+    this.coach.clearPlan(g);
     if (prompt.kind === 'prize') return choosePrize(prompt);
     if (prompt.kind === 'rps') return chooseRps(prompt);
     if (prompt.kind === 'setup-active' && prompt.options.every((o) => o.card)) return chooseActiveStage(prompt);
@@ -2380,7 +2411,12 @@ function makeAIController(myGame) {
       if (on) oppStatus('ui.thinking', {}, true);
       else if (oppState.thinking) oppStatus();
     },
-    onDecision: (act, ans) => { if (myGame === gameId) oppStatus('ui.oppChose', { a: { $t: act.label }, p: pct(ans.confidence) }); },
+    onDecision: (act, ans) => {
+      if (myGame !== gameId) return;
+      const a = { $t: act.label };
+      if (ans.confidence == null) oppStatus('ui.oppChoseHard', { a });
+      else oppStatus('ui.oppChose', { a, p: pct(ans.confidence) });
+    },
     onError: (err) => {
       if (myGame !== gameId) return;
       // Say which engine failed and why: no credits (402) is something the user can fix in the Jev account.
@@ -2729,6 +2765,50 @@ for (const id of ['opt-coach', 'opt-hints', 'opt-anim', ...cardImageOptions]) {
     if (cardImageOptions.includes(id)) syncCardImages();
   });
 }
+const garyVersion = $('#opt-gary-version');
+try {
+  const saved = localStorage.getItem('opt-gary-version');
+  if (['v1', 'v2', 'v3'].includes(saved)) aiConfig.garyVersion = saved;
+  else {
+    const hard = localStorage.getItem('opt-gary-hard');
+    if (hard === '0' || hard === '1') aiConfig.garyVersion = hard === '1' ? 'v2' : 'v1';
+  }
+} catch { /* storage unavailable */ }
+garyVersion.value = aiConfig.garyVersion;
+garyVersion.addEventListener('change', () => {
+  aiConfig.garyVersion = garyVersion.value;
+  try { localStorage.setItem('opt-gary-version', aiConfig.garyVersion); } catch { /* ignore */ }
+  describeCpuVersion('gary', garyVersion);
+  if (engine) applyEngine(engine);
+});
+const coachVersion = $('#opt-coach-version');
+try {
+  const saved = localStorage.getItem('opt-coach-version');
+  if (['v1', 'v2', 'v3'].includes(saved)) aiConfig.coachVersion = saved;
+} catch { /* storage unavailable */ }
+coachVersion.value = aiConfig.coachVersion;
+coachVersion.addEventListener('change', () => {
+  aiConfig.coachVersion = coachVersion.value;
+  try { localStorage.setItem('opt-coach-version', aiConfig.coachVersion); } catch { /* ignore */ }
+  describeCpuVersion('coach', coachVersion);
+  if (aiConfig.engine === 'cpu') refreshCoachRecommendation();
+});
+function refreshCoachRecommendation() {
+  if (!decision) return;
+  const { p, actions } = decision;
+  const player = game.controllers[p.idx];
+  player.coach.clearPlan(game);
+  decision.ranking = null;
+  renderDecision();
+  player.rankDecision(game, p, actions);
+}
+function describeCpuVersion(role, select) {
+  const description = $(`#${role}-version-description`);
+  description.dataset.i18n = `eng.gary${select.value.toUpperCase()}Description`;
+  description.textContent = t(description.dataset.i18n);
+}
+describeCpuVersion('gary', garyVersion);
+describeCpuVersion('coach', coachVersion);
 syncCardImages();
 window.addEventListener('online', () => syncCardImages(true));
 // The rules page highlights the rules you are playing with (or the tab picked on the start screen).

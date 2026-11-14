@@ -3,9 +3,11 @@
 import { canPay, STAGES } from './engine.js';
 import { PRIZES } from './cards.js';
 import { api } from './api.js';
+import { HardPolicy } from './ai-hard.js';
+import { GaryCurrentV3Policy } from './ai-v3-current.js';
 
 // engine: 'cpu' (rule-based, in the browser) or 'model' (a decision model behind /api/decide: local Kev/Laya or hosted Jev).
-export const aiConfig = { endpoint: '/api/decide', model: 'kev-latest', engine: 'cpu' }; // 'model' once the chosen engine is ready (ui.js)
+export const aiConfig = { endpoint: '/api/decide', model: 'kev-latest', engine: 'cpu', garyVersion: 'v3', coachVersion: 'v3' };
 
 export async function askDecider(state, questions) {
   const payload = { model: aiConfig.model, state, questions };
@@ -109,9 +111,16 @@ const winQuestion = {
   criteria: WIN_LEVELS,
 };
 
-// Ask the decision model to rank `actions` for player p. Optionally also rate the position.
-export async function rankActions(game, p, actions, { withWinChance = false } = {}) {
-  if (aiConfig.engine === 'cpu') return { action: cpuRank(game, p, actions), win: withWinChance ? cpuWin(game, p) : undefined, model: 'cpu' };
+// Evaluate the available actions and, on request, the position.
+export async function rankActions(game, p, actions, { withWinChance = false, coach } = {}) {
+  if (aiConfig.engine === 'cpu') {
+    const policy = coach?.cpuPolicy(game);
+    const action = policy
+      ? { type: 'choice', choice: (await policy.chooseAction(game, p, actions)).action.key }
+      : cpuRank(game, p, actions);
+    return { action, win: withWinChance ? cpuWin(game, p) : undefined, model: 'cpu' };
+  }
+  coach?.clearPlan(game);
   const questions = { action: actionQuestion(actions, game, p) };
   if (withWinChance) questions.win = winQuestion;
   const res = await askDecider(buildState(game, p), questions);
@@ -387,11 +396,36 @@ export function fallbackAction(game, p, actions) {
 
 // Controller for the AI opponent.
 export class AIController {
-  constructor({ onThinking = () => {}, onDecision = () => {}, onError = () => {} } = {}) {
-    Object.assign(this, { onThinking, onDecision, onError });
+  constructor({ onThinking = () => {}, onDecision = () => {}, onError = () => {}, hard,
+    version = hard ? () => hard() ? 'v2' : 'v1' : () => aiConfig.garyVersion,
+    policyLimits, garyPolicy = GaryCurrentV3Policy } = {}) {
+    Object.assign(this, { onThinking, onDecision, onError, version });
+    this.hardPolicy = new HardPolicy(cpuScore, cpuPick, policyLimits);
+    this.v3Policy = new garyPolicy(cpuScore, cpuPick, policyLimits);
+    this.v3Policy.prizes = this.hardPolicy.prizes;
+  }
+
+  cpuPolicy(game) {
+    const version = this.version();
+    const policy = version === 'v3' ? this.v3Policy : version === 'v2' ? this.hardPolicy : null;
+    if (this.lastPolicy !== policy) this.lastPolicy?.clearLine(game);
+    this.lastPolicy = policy;
+    return policy;
+  }
+
+  clearPlan(game) {
+    this.lastPolicy?.clearLine(game);
+    this.v3Policy.switchAfterAttachment?.delete(game);
   }
 
   async chooseAction(game, p, actions) {
+    const policy = aiConfig.engine === 'cpu' ? this.cpuPolicy(game) : null;
+    if (policy) {
+      const result = await policy.chooseAction(game, p, actions);
+      this.onDecision(result.action, result);
+      return result.action;
+    }
+    this.lastPolicy?.clearLine(game);
     if (actions.length === 1) return actions[0];
     if (aiConfig.engine === 'cpu') {
       const r = cpuRank(game, p, actions);
@@ -415,7 +449,10 @@ export class AIController {
 
   async choose(game, p, prompt) {
     // Face-down Prize cards and Rock-Paper-Scissors throws: a random pick is the right play (and costs no model call).
-    if (prompt.kind === 'prize' || prompt.kind === 'rps') return prompt.options[Math.floor(Math.random() * prompt.options.length)].id;
+    if (prompt.kind === 'prize' || prompt.kind === 'rps') return prompt.options[Math.floor(game.random() * prompt.options.length)].id;
+    const policy = aiConfig.engine === 'cpu' ? this.cpuPolicy(game) : null;
+    if (policy) return policy.choose(game, p, prompt);
+    this.lastPolicy?.clearLine(game);
     if (aiConfig.engine === 'cpu') return cpuPick(game, p, prompt);
     this.onThinking(true);
     try {
@@ -428,7 +465,21 @@ export class AIController {
     }
   }
 
+  observeDeck(game, p, deck) {
+    this.hardPolicy.observeDeck(game, p, deck);
+  }
+
+  observePrize(game, p, card) {
+    this.hardPolicy.observePrize(game, card);
+  }
+
+  observePrizes(game, p) {
+    this.hardPolicy.observePrizes(game, p);
+  }
+
   async setupBench(game, p, basics) {
+    const policy = aiConfig.engine === 'cpu' ? this.cpuPolicy(game) : null;
+    if (policy) return policy.setupBench(game, p, basics);
     return basics.map((c) => c.uid); // benching every Basic at setup is standard practice
   }
 }

@@ -13,7 +13,7 @@ const card = (name, pick) => ({ ...byName(name, pick), uid: uid++ });
 const energy = (t) => card(`Basic ${t} Energy`, () => true) || card(`${t} Energy`);
 const en = (t) => { const c = Object.values(CARDS).find((x) => x.kind === 'energy' && !x.special && x.energyType === t); return { ...c, uid: uid++ }; };
 const mon = (g, name, { energy: es = [], damage = 0, tools = [], pick, played = 0 } = {}) => {
-  const m = new Mon(card(name, pick), played);
+  const m = g.createMon(card(name, pick), played);
   m.energy = es.map(en); m.damage = damage;
   m.tools = tools.map((t) => ({ card: card(t), expires: 1e9 }));
   return m;
@@ -31,7 +31,7 @@ function newGame(decks, { answers0 = [], answers1 = [] } = {}) {
   return g;
 }
 const check = (name, ok, extra = '') => { if (ok) passed++; else { failed++; console.log('FAIL', name, extra); } };
-const withCoin = async (h, fn) => { const r = Math.random; Math.random = () => ((typeof h === 'function' ? h() : h) ? 0.1 : 0.9); try { return await fn(); } finally { Math.random = r; } };
+const withCoin = async (h, fn) => { const r = Math.random; Math.random = () => (h ? 0.1 : 0.9); try { return await fn(); } finally { Math.random = r; } };
 const attackBy = async (g, p, name) => { const i = g.attacksOf(p.active).findIndex((a) => a.name === name); if (i < 0) throw new Error('no attack ' + name); await g.attack(p, i); };
 
 // ---------------- Classic ----------------
@@ -146,9 +146,10 @@ const attackBy = async (g, p, name) => { const i = g.attacksOf(p.active).findInd
     const attacker = CARDS[id];
     const cost = attacker.attacks.find((a) => a.name === attack).cost;
     me.active = mon(g, attacker.name, { pick: (c) => c.id === id, energy: cost.map((t) => t === 'Colorless' ? 'Fighting' : t) });
-    op.active = new Mon({ ...card("Koga's Weezing"), hp: 1000 }, 0);
+    op.active = g.createMon({ ...card("Koga's Weezing"), hp: 1000 }, 0);
     let flips = 0;
-    await withCoin(() => flips++ < 21, () => attackBy(g, me, attack));
+    g.random = () => flips++ < 21 ? 0.1 : 0.9;
+    await attackBy(g, me, attack);
     check(`${attack}: counts 21 heads and stops on tails`, flips === 22 && op.active.damage === expected, `${flips} flips, ${op.active.damage} damage`);
   }
 }
@@ -156,7 +157,7 @@ const attackBy = async (g, p, name) => { const i = g.attacksOf(p.active).findInd
   const g = newGame(['sm-forest-shadow', 'sm-forest-shadow']);
   const [me, op] = g.players;
   me.active = mon(g, 'Parasect', { pick: (c) => c.id === 'sm1-5', energy: ['Grass', 'Grass', 'Grass'] });
-  op.active = new Mon({ ...card("Koga's Weezing"), hp: 200 }, 0);
+  op.active = g.createMon({ ...card("Koga's Weezing"), hp: 200 }, 0);
   const bonuses = [];
   g.hooks.onCoin = ({ heads }) => { bonuses.push(heads.params.n); };
   await withCoin(true, () => attackBy(g, me, 'Fury Cutter'));
@@ -1492,6 +1493,43 @@ const sm = (c) => /^sm\d|^smp|^sm75|^sm35/.test(c.set || '');
   await playAny(g, me, 'Dan');
   check('Dan: tie, then rock beats scissors → 2 + 2 cards drawn', before - me.deck.length === 4, before - me.deck.length);
   check('Dan: the UI sees both rounds with both throws', rounds.length === 2 && rounds[0].result === 'tie' && !rounds[0].last && rounds[1].result === 'win' && rounds[1].last && rounds[1].a === 'rock' && rounds[1].b === 'scissors' && rounds[1].p === 0, JSON.stringify(rounds));
+}
+{ // Sada can attach once to each of two different Ancient Pokémon.
+  const g = newGame(['svd-koraidon', 'svd-koraidon'], { answers0: [undefined, undefined, undefined] });
+  const [me, op] = g.players;
+  me.active = mon(g, 'Koraidon', { pick: (c) => c.tags?.includes('Ancient') });
+  me.bench = [mon(g, 'Great Tusk', { pick: (c) => c.tags?.includes('Ancient') })];
+  op.active = mon(g, 'Koraidon', { pick: (c) => c.tags?.includes('Ancient') });
+  me.discard = [en('Fire'), en('Fighting')];
+  await playAny(g, me, "Professor Sada's Vitality");
+  check('Sada: two Energy go to distinct Ancient Pokémon and then draw three',
+    me.active.energy.length === 1 && me.bench[0].energy.length === 1 && me.hand.length === 3);
+}
+{ // Forest Seal Stone supplies its own Ability even when the holder has no usable Ability.
+  const g = newGame(['swl-mew', 'swl-mew']);
+  const [me, op] = g.players;
+  me.active = mon(g, 'Mew V');
+  op.active = mon(g, 'Genesect V');
+  g.stadium = { card: card('Path to the Peak'), owner: op.idx };
+  await playAny(g, me, 'Forest Seal Stone');
+  const action = g.legalActions(me).find((a) => a.pkind === 'starAlchemy');
+  if (action) await g.perform(me, action);
+  check('Forest Seal Stone: searches under Path to the Peak and consumes the VSTAR Power',
+    !!action && me.hand.length === 1 && me.vstarUsed && !g.legalActions(me).some((a) => a.pkind === 'starAlchemy'));
+}
+{ // Computer Search uses the same observable deck selection as other full-deck searches.
+  const g = newGame(['psych-out', 'psych-out']);
+  const [me, op] = g.players;
+  me.active = mon(g, 'Squirtle');
+  op.active = mon(g, 'Seel');
+  me.hand = [en('Psychic'), en('Psychic')];
+  me.deck = [en('Water')];
+  let seen;
+  g.controllers[0].observeDeck = (_g, _p, counts) => { seen = counts; };
+  const target = me.deck[0];
+  await playAny(g, me, 'Computer Search');
+  check('Computer Search: pays two cards, reveals deck counts to the searching player and takes the target',
+    seen?.get(target.id) === 1 && me.hand[0] === target && me.hand.length === 1 && !me.deck.length && me.discard.length === 3);
 }
 console.log(`scenario checks: ${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

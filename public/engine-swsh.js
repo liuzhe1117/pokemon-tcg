@@ -3,7 +3,7 @@
 // The hooks here are reached from engine-mega.js (Trainers, Abilities, attack effects) and engine.js (damage).
 
 import { attackRef, powerRef } from './content-i18n/refs.js';
-export function installSwsh(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
+export function installSwsh(Game, { C, isBasic, MAX_BENCH }) {
   const basicEnergy = (x) => x.kind === 'energy' && !x.special;
   const ofType = (type) => (x) => basicEnergy(x) && x.energyType === type;
   const evolution = (x) => x.kind === 'pokemon' && x.stage > 0;
@@ -44,7 +44,7 @@ export function installSwsh(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
     async playSwshTrainer(p, o, c, act, L) {
       const pokeAi = (x) => (x.stage > 0 && this.allMons(p).some((y) => y.name === x.evolvesFrom) ? 10 : 0) + (x.prizes ? 6 : 0) + (x.stage === 0 && p.bench.length < MAX_BENCH ? 3 : 0);
       const take = async (ok, text, en, { none = false, ai = pokeAi } = {}) => {
-        const x = await this.pickCard(p, 'search', p.deck.filter(ok), text, { c: C(c) }, en, { none, ai });
+        const x = await this.pickCard(p, 'search', this.viewDeck(p).filter(ok), text, { c: C(c) }, en, { none, ai });
         if (x) p.hand.push(p.deck.splice(p.deck.indexOf(x), 1)[0]);
         return x;
       };
@@ -61,7 +61,7 @@ export function installSwsh(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
       switch (c.tkind) {
         case 'bede': {
           const en = await this.pickCard(p, 'discard', p.hand.filter(basicEnergy), 'prompt.q.energyFromHand', { c: C(c) }, 'Choose a basic Energy from your hand.', { unique: false, ai: () => 1 });
-          const t = await this.pickMon(p, 'attachTo', p.bench, 'prompt.q.attachTo', { c: C(c) }, `Attach ${en.name} to which Benched Pokémon?`, (x) => (x.card.attacks.some((a) => a.cost.includes(en.energyType)) ? 2 : 0) + x.card.stage);
+          const t = await this.pickMon(p, 'attachTo', p.bench, 'prompt.q.attachTo', { c: C(c) }, `Attach ${en.name} to which Benched Pokémon?`, (x) => (x.card.attacks.some((a) => a.cost.includes(en.energyType)) ? 2 : 0) + x.card.stage, { cards: [en] });
           await this.attachHandCard(p, en, t); // Old Cemetery, Natural Cure
           break;
         }
@@ -76,7 +76,7 @@ export function installSwsh(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
         case 'capaciousBucket': {
           let n = 0;
           for (let k = 0; k < 2; k++) if (await take((y) => y.kind === 'energy' && y.energyType === 'Water', 'prompt.q.searchEnergyAny', 'Choose a Water Energy card.', { none: true, ai: () => 1 })) n++;
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           L('gotN', { n });
           break;
         }
@@ -84,7 +84,7 @@ export function installSwsh(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
           let n = this.draw(p, 2);
           let mine, theirs;
           for (let round = 0; round < 10; round++) {
-            const throwOf = (q, who) => this.pick(q, 'rps', 'prompt.gen.title', 'prompt.q.rps', RPS.map((x) => ({ id: x, label: { key: 'opt.' + x }, en: x, ai: Math.random() })),
+            const throwOf = (q, who) => this.pick(q, 'rps', 'prompt.gen.title', 'prompt.q.rps', RPS.map((x) => ({ id: x, label: { key: 'opt.' + x }, en: x, ai: this.random() })),
               { params: { c: C(c), by: p.idx }, en: `Rock-Paper-Scissors (${who}): choose rock, paper or scissors.` }); // by: who played Dan
             mine = await throwOf(p, 'your throw');
             theirs = await throwOf(o, "the opponent's throw");
@@ -99,7 +99,7 @@ export function installSwsh(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
           L('dan', { n, won: beats[mine] === theirs ? 1 : 0 });
           break;
         }
-        case 'evolutionIncense': { const x = await take(evolution, 'prompt.q.searchPokemon', 'Choose an Evolution Pokémon.'); shuffle(p.deck); if (x) L('got', { got: C(x) }); break; }
+        case 'evolutionIncense': { const x = await take(evolution, 'prompt.q.searchPokemon', 'Choose an Evolution Pokémon.'); this.shuffle(p.deck); if (x) L('got', { got: C(x) }); break; }
         case 'hop': L('drew', { n: this.draw(p, 3) }); break;
         case 'leon': p.flags.leon = true; this.plog(p, 'log.leon', { c: C(c) }); break;
         case 'metalSaucer': await this.attachFromDiscard(p, p.bench.filter((x) => x.card.type === 'Metal'), 1, ofType('Metal'), C(c)); break;
@@ -124,11 +124,11 @@ export function installSwsh(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
           let n = 0;
           if (id === 'pokemon' || id === 'both') n += await shuffleBack((x) => x.kind === 'pokemon', 2);
           if (id === 'energy' || id === 'both') n += await shuffleBack(basicEnergy, 2);
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           L('shuffledBack', { n });
           break;
         }
-        case 'pokeKid': { const x = await take((y) => y.kind === 'pokemon', 'prompt.q.searchPokemon', 'Choose a Pokémon.'); shuffle(p.deck); if (x) L('got', { got: C(x) }); break; }
+        case 'pokeKid': { const x = await take((y) => y.kind === 'pokemon', 'prompt.q.searchPokemon', 'Choose a Pokémon.'); this.shuffle(p.deck); if (x) L('got', { got: C(x) }); break; }
         case 'pokemonCatcher': {
           if (!(await coin('gust'))) { L('nothing'); break; }
           const t = await this.pickMon(p, 'lure', o.bench, 'prompt.lure.text', {}, "Choose one of the opponent's Benched Pokémon to switch into the Active Spot.", (x) => -x.hpLeft / 10 + (x.card.prizes ? 40 : 0));
@@ -152,7 +152,7 @@ export function installSwsh(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
             : hasMon ? 'pokemon' : 'energy';
           let n = 0;
           for (let k = 0; k < 2; k++) if (await take(id === 'pokemon' ? isBasic : basicEnergy, id === 'pokemon' ? 'prompt.q.searchPokemon' : 'prompt.q.searchEnergy', 'Choose a card.', { none: true, ai: id === 'pokemon' ? pokeAi : () => 1 })) n++;
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           L('gotN', { n });
           break;
         }
@@ -259,7 +259,7 @@ export function installSwsh(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
       if (fx.millSelf && p.deck.length) { const out = p.deck.splice(-fx.millSelf); p.discard.push(...out); this.plog(p, 'log.milled', { n: out.length }); }
       if (fx.millOpp && o.deck.length) for (const x of o.deck.splice(-fx.millOpp)) { o.discard.push(x); this.plog(o, 'log.milledCard', { c: C(x) }); }
       if (fx.discardRandomOppHand && o.hand.length) {
-        const x = o.hand.splice(Math.floor(Math.random() * o.hand.length), 1)[0];
+        const x = o.hand.splice(Math.floor(this.random() * o.hand.length), 1)[0];
         o.discard.push(x);
         this.plog(o, 'log.randomDiscard', { c: C(x) });
       }
@@ -276,7 +276,7 @@ export function installSwsh(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
       // Cotton Ride: on heads the opponent shuffles their Active Pokémon and everything on it into their deck.
       if (fx.flipShuffleDef && dActive && (await this.flip('attack', { atk: attackRef(atk) }, [{ key: 'coin.o.shuffleIn', params: { m: C(d) } }, { key: 'coin.o.nothing', params: {} }]))) {
         o.deck.push(...this.removeFromPlay(o, d));
-        shuffle(o.deck);
+        this.shuffle(o.deck);
         this.log('log.shuffledIntoDeck', { m: C(d) }, 'status');
         await this.refillActive();
       }

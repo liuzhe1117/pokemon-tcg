@@ -2,6 +2,7 @@
 .env
 decision.json
 /.cache/card-localization/
+/.cache/gary-arena/
 
 # dependencies and build output
 node_modules/

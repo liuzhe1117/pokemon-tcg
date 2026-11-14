@@ -4,7 +4,7 @@
 // Everything here only runs when `game.modern` is true (both players use modern decks).
 
 import { attackRef, powerRef } from './content-i18n/refs.js';
-export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_BENCH, evolvesFromOf }) {
+export function installModern(Game, { C, PL, isBasic, isType, MAX_BENCH, evolvesFromOf }) {
   const TOOL_FOREVER = 1e9;
   const isTR = (m) => m.name.startsWith("Team Rocket's");
   const tool = (m, k) => m.tools.some((t) => t.card.tool === k);
@@ -175,21 +175,21 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
           break;
         }
         case 'nestBall': {
-          const x = await this.pickCard(p, 'search', p.deck.filter(isBasic), 'prompt.q.callFamily', { c: C(c) }, 'Choose a Basic Pokémon from your deck to put onto your Bench.', { ai: pokeAi });
-          if (x) await benchFromDeck(x); else shuffle(p.deck);
+          const x = await this.pickCard(p, 'search', this.viewDeck(p).filter(isBasic), 'prompt.q.callFamily', { c: C(c) }, 'Choose a Basic Pokémon from your deck to put onto your Bench.', { ai: pokeAi });
+          if (x) await benchFromDeck(x); else this.shuffle(p.deck);
           break;
         }
         case 'buddyPoffin':
           for (let k = 0; k < 2 && p.bench.length < MAX_BENCH; k++) {
-            const x = await this.pickCard(p, 'search', p.deck.filter((y) => isBasic(y) && y.hp <= 70), 'prompt.q.callFamily', { c: C(c) }, 'Choose a Basic Pokémon (70 HP or less) to put onto your Bench.', { none: true, ai: pokeAi });
+            const x = await this.pickCard(p, 'search', this.viewDeck(p).filter((y) => isBasic(y) && y.hp <= 70), 'prompt.q.callFamily', { c: C(c) }, 'Choose a Basic Pokémon (70 HP or less) to put onto your Bench.', { none: true, ai: pokeAi });
             if (!x) break;
             await benchFromDeck(x);
           }
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           break;
         case 'ultraBall': {
           await this.discardHandCards(p, p.hand, 2, 'prompt.q.discardK', {}, (x) => x.kind === 'energy' ? 1 : x.ttype === 'stadium' ? 2 : 0);
-          const x = await this.pickCard(p, 'search', p.deck.filter((y) => y.kind === 'pokemon'), 'prompt.q.searchPokemon', { c: C(c) }, 'Choose a Pokémon from your deck to put into your hand.', { ai: pokeAi });
+          const x = await this.pickCard(p, 'search', this.viewDeck(p).filter((y) => y.kind === 'pokemon'), 'prompt.q.searchPokemon', { c: C(c) }, 'Choose a Pokémon from your deck to put into your hand.', { ai: pokeAi });
           if (x) { toHand(x); L('got', { got: hide(x) }); }
           break;
         }
@@ -198,7 +198,7 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
           const ok = c.tkind === 'greatBall' ? (x) => x.kind === 'pokemon' : (x) => x.ttype === 'supporter';
           const x = await this.pickCard(p, 'search', top.filter(ok), c.tkind === 'greatBall' ? 'prompt.q.searchPokemon' : 'prompt.q.searchSupporter', { c: C(c) }, 'Choose a card from the top of your deck to put into your hand.', { none: true, unique: false, ai: pokeAi });
           if (x) { p.deck.splice(p.deck.indexOf(x), 1); p.hand.push(x); L('got', { got: hide(x) }); } else L('nothing');
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           break;
         }
         case 'palPad': case 'superRod': {
@@ -210,7 +210,7 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
             if (!x) break;
             p.deck.push(this.pullFromDiscard(p, x)); n++;
           }
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           L('shuffledBack', { n });
           break;
         }
@@ -229,11 +229,11 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
           if (d) p.discard.push(this.takeFromHand(p, d));
           let n = 0;
           for (let k = 0; k < 2; k++) {
-            const x = await this.pickCard(p, 'search', p.deck.filter(basicEnergy), 'prompt.q.searchEnergy', { c: C(c) }, 'Choose a basic Energy from your deck.', { none: true, ai: () => 1 });
+            const x = await this.pickCard(p, 'search', this.viewDeck(p).filter(basicEnergy), 'prompt.q.searchEnergy', { c: C(c) }, 'Choose a basic Energy from your deck.', { none: true, ai: () => 1 });
             if (!x) break;
             p.hand.push(p.deck.splice(p.deck.indexOf(x), 1)[0]); n++;
           }
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           L('energiesN', { n });
           break;
         }
@@ -242,13 +242,13 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
           const targets = p.bench.filter((x) => x.card.type === 'Lightning');
           let n = 0;
           for (const en of top.filter((x) => basicEnergy(x) && x.energyType === 'Lightning').slice(0, 2)) {
-            const t = await this.pickMon(p, 'attachTo', targets, 'prompt.q.attachTo', { c: C(c) }, 'Attach this Lightning Energy to which Benched Pokémon?', (x) => -this.energyGap(x));
+            const t = await this.pickMon(p, 'attachTo', targets, 'prompt.q.attachTo', { c: C(c) }, 'Attach this Lightning Energy to which Benched Pokémon?', (x) => -this.energyGap(x), { cards: [en] });
             await this.hooks.onAttach?.({ p: p.idx, mon: t.id, card: en });
             top.splice(top.indexOf(en), 1);
             t.energy.push(en); n++;
           }
           p.deck.push(...top);
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           L('energiesN', { n });
           break;
         }
@@ -285,10 +285,10 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
           const want = c.tkind === 'arven' ? [['item', (x) => x.ttype === 'item'], ['tool', (x) => x.ttype === 'tool']]
             : c.tkind === 'trPetrel' ? [['trainer', (x) => x.kind === 'trainer']] : [['supporter', (x) => x.ttype === 'supporter' && x.name.includes('Team Rocket')]];
           for (const [, ok] of want) {
-            const x = await this.pickCard(p, 'search', p.deck.filter(ok), 'prompt.q.searchTrainer', { c: C(c) }, 'Choose a Trainer card from your deck to put into your hand.', { ai: (y) => (y.tkind === 'rareCandy' ? 3 : y.tkind === 'ultraBall' ? 2 : 1) });
+            const x = await this.pickCard(p, 'search', this.viewDeck(p).filter(ok), 'prompt.q.searchTrainer', { c: C(c) }, 'Choose a Trainer card from your deck to put into your hand.', { ai: (y) => (y.tkind === 'rareCandy' ? 3 : y.tkind === 'ultraBall' ? 2 : 1) });
             if (x) { toHand(x); L('got', { got: C(x) }); }
           }
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           break;
         }
         case 'jacq': case 'clavell': case 'trProton': {
@@ -296,11 +296,11 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
             : c.tkind === 'clavell' ? [3, (x) => isBasic(x) && x.hp <= 120] : [3, (x) => isBasic(x) && isTR(x)];
           let got = 0;
           for (let k = 0; k < n; k++) {
-            const x = await this.pickCard(p, 'search', p.deck.filter(ok), 'prompt.q.searchPokemon', { c: C(c) }, 'Choose a Pokémon from your deck to put into your hand.', { none: true, ai: pokeAi });
+            const x = await this.pickCard(p, 'search', this.viewDeck(p).filter(ok), 'prompt.q.searchPokemon', { c: C(c) }, 'Choose a Pokémon from your deck to put into your hand.', { none: true, ai: pokeAi });
             if (!x) break;
             p.hand.push(p.deck.splice(p.deck.indexOf(x), 1)[0]); got++;
           }
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           L('gotN', { n: got });
           break;
         }
@@ -309,7 +309,7 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
         case 'youngster': this.shuffleHandIn(p); L('drew', { n: this.draw(p, 5) }); break;
         case 'iono':
           for (const q of [p, o]) {
-            shuffle(q.hand);
+            this.shuffle(q.hand);
             q.deck.unshift(...q.hand); // the bottom of the deck
             q.hand = [];
             this.plog(q, 'log.t.newHand', { n: this.draw(q, q.prizes.length) });
@@ -345,7 +345,7 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
             top.splice(top.indexOf(x), 1);
             p.hand.push(x);
           }
-          shuffle(top);
+          this.shuffle(top);
           p.deck.unshift(...top);
           L('rika');
           break;
@@ -377,7 +377,7 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
     energyGap(m) { return Math.max(0, ...m.card.attacks.map((a) => a.cost.length)) - m.energyTypes.length; },
 
     // Attach N (or "up to N": the player may stop) Energy from the discard pile; the player picks which when they differ.
-    async attachFromDiscard(p, targets, n, ok, source, { upTo = false } = {}) {
+    async attachFromDiscard(p, targets, n, ok, source, { upTo = false, distinct = false } = {}) {
       let done = 0;
       for (let k = 0; k < n; k++) {
         const pool = p.discard.filter(ok);
@@ -386,10 +386,11 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
           ? await this.pickCard(p, 'search', pool, 'prompt.q.attachWhichEnergy', { c: source }, 'Which Energy from your discard pile do you attach?', { none: upTo, ai: () => 1 })
           : pool.at(-1);
         if (!en) break;
-        const t = await this.pickMon(p, 'attachTo', targets, 'prompt.q.attachTo', { c: source }, `Attach ${en.name} from your discard pile to which Pokémon?`, (x) => (x === p.active ? 2 : 0) - this.energyGap(x) * -1);
+        const t = await this.pickMon(p, 'attachTo', targets, 'prompt.q.attachTo', { c: source }, `Attach ${en.name} from your discard pile to which Pokémon?`, (x) => (x === p.active ? 2 : 0) - this.energyGap(x) * -1, { cards: [en] });
         await this.hooks.onAttach?.({ p: p.idx, mon: t.id, card: en });
         t.energy.push(this.pullFromDiscard(p, en));
         this.plog(p, 'log.energy', { c: C(en), m: C(t) });
+        if (distinct) targets = targets.filter((target) => target !== t);
         done++;
       }
       return done;
@@ -447,15 +448,15 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
           break;
         }
         case 'infernalReign': {
-          const fires = p.deck.filter((x) => basicEnergy(x) && x.energyType === 'Fire').slice(0, 3);
+          const fires = this.viewDeck(p).filter((x) => basicEnergy(x) && x.energyType === 'Fire').slice(0, 3);
           if (!fires.length) return;
           say();
           for (const en of fires) {
-            const t = await this.pickMon(p, 'attachTo', this.allMons(p), 'prompt.q.attachTo', { c: powerRef(m.card.power) }, 'Attach a Fire Energy from your deck to which Pokémon?', (x) => (x === m ? 3 : 0) + (x.card.type === 'Fire' ? 2 : 0));
+            const t = await this.pickMon(p, 'attachTo', this.allMons(p), 'prompt.q.attachTo', { c: powerRef(m.card.power) }, 'Attach a Fire Energy from your deck to which Pokémon?', (x) => (x === m ? 3 : 0) + (x.card.type === 'Fire' ? 2 : 0), { cards: [en] });
             await this.hooks.onAttach?.({ p: p.idx, mon: t.id, card: en });
             t.energy.push(p.deck.splice(p.deck.indexOf(en), 1)[0]);
           }
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           this.plog(p, 'log.energiesFound', { n: fires.length });
           break;
         }
@@ -464,13 +465,13 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
           const found = top.filter(basicEnergy);
           say();
           for (const en of found) {
-            const t = await this.pickMon(p, 'attachTo', this.allMons(p), 'prompt.q.attachTo', { c: powerRef(m.card.power) }, `Attach ${en.name} to which Pokémon?`, (x) => (x === p.active ? 2 : 0) + (x.card.attacks.some((a) => a.cost.includes(en.energyType)) ? 2 : 0));
+            const t = await this.pickMon(p, 'attachTo', this.allMons(p), 'prompt.q.attachTo', { c: powerRef(m.card.power) }, `Attach ${en.name} to which Pokémon?`, (x) => (x === p.active ? 2 : 0) + (x.card.attacks.some((a) => a.cost.includes(en.energyType)) ? 2 : 0), { cards: [en] });
             await this.hooks.onAttach?.({ p: p.idx, mon: t.id, card: en });
             top.splice(top.indexOf(en), 1);
             t.energy.push(en);
           }
           p.deck.push(...top);
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           this.plog(p, 'log.energiesFound', { n: found.length });
           break;
         }
@@ -497,7 +498,7 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
         if (moved) this.plog(p, 'log.energyMovedN', { n: moved, m: C(m) });
       }
       if (k === 'luminousSign') {
-        const x = await this.pickCard(p, 'search', p.deck.filter((y) => y.ttype === 'supporter'), 'prompt.q.searchSupporter', { c: powerRef(m.card.power) }, 'Choose a Supporter card from your deck.', { none: true, ai: (y) => (y.tkind === 'bossOrders' ? 3 : y.tkind === 'arven' ? 2 : 1) });
+        const x = await this.pickCard(p, 'search', this.viewDeck(p).filter((y) => y.ttype === 'supporter'), 'prompt.q.searchSupporter', { c: powerRef(m.card.power) }, 'Choose a Supporter card from your deck.', { none: true, ai: (y) => (y.tkind === 'bossOrders' ? 3 : y.tkind === 'arven' ? 2 : 1) });
         if (x) { p.hand.push(this.searchDeck(p, x)); this.plog(p, 'log.ability', { m: C(m), pw: powerRef(m.card.power) }); }
       }
     },
@@ -511,7 +512,8 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
         // Forest Seal Stone gives a Pokémon V the VSTAR Power Star Alchemy (once per game).
         for (const tl of m.tools) if (tl.card.power?.vstar) sources.push([m, tl.card.power.kind, tl.card.power]);
         for (const [mon, kind, power] of sources) {
-          if (!kind || !this.powerOn(mon)) continue;
+          // Tool Abilities are printed on the Tool and are independent of the holder's Abilities.
+          if (!kind || (power?.kind === 'starAlchemy' ? !mon.card.tags?.includes('V') : !this.powerOn(mon))) continue;
           const A = (detail, extra = {}) => add('power', lbl('ability', { m: C(mon), pw: powerRef(power) }), `Ability ${power.name} of ${mon.name}: ${detail}`, { target: mon, pkind: kind, ...extra });
           const handEnergy = (type) => p.hand.some((x) => basicEnergy(x) && (!type || x.energyType === type));
           switch (kind) {
@@ -547,14 +549,14 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
       const pickHand = (text, ok, ai) => this.pickCard(p, 'discard', p.hand.filter(ok), text, { c: powerRef(power) }, 'Choose a card from your hand.', { unique: false, ai });
       const attachFromHand = async (type, targets) => {
         const en = await pickHand('prompt.q.energyFromHand', (x) => basicEnergy(x) && (!type || x.energyType === type), () => 1);
-        const t = await this.pickMon(p, 'attachTo', targets, 'prompt.q.attachTo', { c: powerRef(power) }, `Attach ${en.name} to which Pokémon?`, (x) => (x === p.active ? 2 : 0) + (x.card.attacks.some((a) => a.cost.includes(en.energyType)) ? 2 : 0) - (x.energyTypes.length > 4 ? 3 : 0));
+        const t = await this.pickMon(p, 'attachTo', targets, 'prompt.q.attachTo', { c: powerRef(power) }, `Attach ${en.name} to which Pokémon?`, (x) => (x === p.active ? 2 : 0) + (x.card.attacks.some((a) => a.cost.includes(en.energyType)) ? 2 : 0) - (x.energyTypes.length > 4 ? 3 : 0), { cards: [en] });
         await this.hooks.onAttach?.({ p: p.idx, mon: t.id, card: en });
         t.energy.push(this.takeFromHand(p, en));
         this.plog(p, 'log.energy', { c: C(en), m: C(t) });
         await this.oldCemetery(t);
       };
       const anyCard = async (kind) => {
-        const x = await this.pickCard(p, 'search', p.deck, 'prompt.q.searchAny', { c: powerRef(power) }, 'Choose any card from your deck to put into your hand.', { ai: (y) => (y.tkind === 'rareCandy' ? 5 : y.ttype === 'supporter' ? 4 : y.kind === 'pokemon' && y.stage > 0 ? 3 : 1) });
+        const x = await this.pickCard(p, 'search', this.viewDeck(p), 'prompt.q.searchAny', { c: powerRef(power) }, 'Choose any card from your deck to put into your hand.', { ai: (y) => (y.tkind === 'rareCandy' ? 5 : y.ttype === 'supporter' ? 4 : y.kind === 'pokemon' && y.stage > 0 ? 3 : 1) });
         if (x) { p.hand.push(this.searchDeck(p, x)); this.plog(p, 'log.t.got', { c: powerRef(power), got: p.idx === 0 ? C(x) : { $hidden: true } }); }
       };
       switch (act.pkind) {
@@ -571,16 +573,16 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
         case 'clairvoyantSense': await attachFromHand('Psychic', p.bench); this.plog(p, 'log.t.drewN', { n: this.draw(p, 2) }); break;
         case 'tandemUnit':
           for (let k = 0; k < 2 && p.bench.length < MAX_BENCH; k++) {
-            const x = await this.pickCard(p, 'search', p.deck.filter((y) => isBasic(y) && y.type === 'Lightning'), 'prompt.q.callFamily', { c: powerRef(power) }, 'Choose a Basic Lightning Pokémon to put onto your Bench.', { none: true, ai: (y) => y.hp });
+            const x = await this.pickCard(p, 'search', this.viewDeck(p).filter((y) => isBasic(y) && y.type === 'Lightning'), 'prompt.q.callFamily', { c: powerRef(power) }, 'Choose a Basic Lightning Pokémon to put onto your Bench.', { none: true, ai: (y) => y.hp });
             if (!x) break;
-            p.bench.push(new Mon(this.searchDeck(p, x), this.turn));
+            p.bench.push(this.createMon(this.searchDeck(p, x), this.turn));
             this.plog(p, 'log.bench', { c: C(x) });
           }
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           break;
         case 'psychicEmbrace': {
           const en = p.discard.findLast((x) => basicEnergy(x) && x.energyType === 'Psychic');
-          const t = await this.pickMon(p, 'attachTo', this.allMons(p).filter((x) => x.card.type === 'Psychic' && x.hpLeft > 20), 'prompt.q.attachTo', { c: powerRef(power) }, 'Attach a Psychic Energy from your discard pile to which Psychic Pokémon (it takes 2 damage counters)?', (x) => (x.card.name.includes('Gardevoir') ? 3 : 0) + (x === p.active ? 2 : 0) + x.hpLeft / 100);
+          const t = await this.pickMon(p, 'attachTo', this.allMons(p).filter((x) => x.card.type === 'Psychic' && x.hpLeft > 20), 'prompt.q.attachTo', { c: powerRef(power) }, 'Attach a Psychic Energy from your discard pile to which Psychic Pokémon (it takes 2 damage counters)?', (x) => (x.card.name.includes('Gardevoir') ? 3 : 0) + (x === p.active ? 2 : 0) + x.hpLeft / 100, { cards: [en], damage: 20 });
           await this.hooks.onAttach?.({ p: p.idx, mon: t.id, card: en });
           t.energy.push(this.pullFromDiscard(p, en));
           await this.spread(m, [[t, 20]], { counters: true });
@@ -606,7 +608,7 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
           const top = p.deck.slice(-6);
           const x = await this.pickCard(p, 'search', top.filter((y) => y.ttype === 'supporter'), 'prompt.q.searchSupporter', { c: powerRef(power) }, 'Choose a Supporter from the top of your deck.', { none: true, unique: false, ai: () => 1 });
           if (x) { p.deck.splice(p.deck.indexOf(x), 1); p.hand.push(x); this.plog(p, 'log.t.got', { c: powerRef(power), got: C(x) }); }
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           break;
         }
         case 'shiveryChill': {
@@ -616,7 +618,7 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
             if (!en) break;
             p.hand.push(p.deck.splice(p.deck.indexOf(en), 1)[0]); n++;
           }
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           this.plog(p, 'log.energiesFound', { n });
           break;
         }
@@ -637,9 +639,9 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
       const s = this.stadium.card;
       p.flags.stadiumUsed = true;
       if (act.stadium === 'artazon') {
-        const x = await this.pickCard(p, 'search', p.deck.filter((y) => isBasic(y) && !ruleBox(y)), 'prompt.q.callFamily', { c: C(s) }, 'Choose a Basic Pokémon to put onto your Bench.', { ai: (y) => y.hp });
-        if (x) { p.bench.push(new Mon(this.searchDeck(p, x), this.turn)); this.plog(p, 'log.bench', { c: C(x) }); }
-        else shuffle(p.deck);
+        const x = await this.pickCard(p, 'search', this.viewDeck(p).filter((y) => isBasic(y) && !ruleBox(y)), 'prompt.q.callFamily', { c: C(s) }, 'Choose a Basic Pokémon to put onto your Bench.', { ai: (y) => y.hp });
+        if (x) { p.bench.push(this.createMon(this.searchDeck(p, x), this.turn)); this.plog(p, 'log.bench', { c: C(x) }); }
+        else this.shuffle(p.deck);
       }
       if (act.stadium === 'trFactory') this.plog(p, 'log.t.drewN', { n: this.draw(p, 2) });
       return this.megaUseStadium(p, act); // true when the Stadium ends the turn (Jubilife Village)
@@ -695,12 +697,12 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
       if (fx.callAny && p.bench.length < MAX_BENCH) {
         for (let k = 0; k < fx.callAny.n && p.bench.length < MAX_BENCH; k++) {
           const ok = (y) => isBasic(y) && (!fx.callAny.prefix || y.name.startsWith(fx.callAny.prefix)) && (!fx.callAny.tag || y.tags?.includes(fx.callAny.tag)); // Summoning Sign: Steven's Pokémon only; Keep Calling: Rapid Strike
-          const x = await this.pickCard(p, 'search', p.deck.filter(ok), 'prompt.q.callFamily', { c: attackRef(atk) }, 'Choose a Basic Pokémon to put onto your Bench.', { none: true, ai: (y) => y.hp + (y.prizes ? 50 : 0) });
+          const x = await this.pickCard(p, 'search', this.viewDeck(p).filter(ok), 'prompt.q.callFamily', { c: attackRef(atk) }, 'Choose a Basic Pokémon to put onto your Bench.', { none: true, ai: (y) => y.hp + (y.prizes ? 50 : 0) });
           if (!x) break;
           await this.benchFromDeck(p, x);
           p.flags.calledNow = true; // Strike and Run: switch only if Pokémon were benched
         }
-        shuffle(p.deck);
+        this.shuffle(p.deck);
       }
       if (fx.healAny) {
         const hurt = this.allMons(p).filter((x) => x.damage);
@@ -713,17 +715,17 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
         let n = 0;
         for (let k = 0; k < fx.searchBasicEnergy.n; k++) {
           const ok = fx.searchBasicEnergy.type ? (x) => x.kind === 'energy' && x.energyType === fx.searchBasicEnergy.type : basicEnergy; // Water Reserve: "Water Energy cards"
-          const en = await this.pickCard(p, 'search', p.deck.filter(ok), 'prompt.q.searchEnergy', { c: attackRef(atk) }, 'Choose a basic Energy from your deck.', { none: true, ai: () => 1 });
+          const en = await this.pickCard(p, 'search', this.viewDeck(p).filter(ok), 'prompt.q.searchEnergy', { c: attackRef(atk) }, 'Choose a basic Energy from your deck.', { none: true, ai: () => 1 });
           if (!en) break;
           p.hand.push(p.deck.splice(p.deck.indexOf(en), 1)[0]); n++;
         }
-        shuffle(p.deck);
+        this.shuffle(p.deck);
         this.plog(p, 'log.energiesFound', { n });
       }
       if (fx.searchAttach && typeof fx.searchAttach === 'object') {
         let n = 0;
         for (let k = 0; k < fx.searchAttach.n; k++) {
-          const en = await this.pickCard(p, 'search', p.deck.filter((x) => basicEnergy(x) && x.energyType === fx.searchAttach.type), 'prompt.q.searchEnergy', { c: attackRef(atk) }, 'Choose a basic Energy to attach.', { none: true, ai: () => 1 });
+          const en = await this.pickCard(p, 'search', this.viewDeck(p).filter((x) => basicEnergy(x) && x.energyType === fx.searchAttach.type), 'prompt.q.searchEnergy', { c: attackRef(atk) }, 'Choose a basic Energy to attach.', { none: true, ai: () => 1 });
           if (!en) break;
           await this.hooks.onAttach?.({ p: p.idx, mon: a.id, card: en });
           a.energy.push(this.searchDeck(p, en)); n++;
@@ -735,13 +737,13 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
         const upTo = /up to/i.test(atk.text);
         const eligible = (x) => basicEnergy(x) && (!type || x.energyType === type);
         for (let k = 0; k < n; k++) {
-          const en = await this.pickCard(p, 'search', p.deck.filter(eligible), 'prompt.q.searchEnergy', { c: attackRef(atk) }, 'Choose a basic Energy to attach.', { none: upTo, ai: () => 1 });
+          const en = await this.pickCard(p, 'search', this.viewDeck(p).filter(eligible), 'prompt.q.searchEnergy', { c: attackRef(atk) }, 'Choose a basic Energy to attach.', { none: upTo, ai: () => 1 });
           if (!en) break;
-          const t = await this.pickMon(p, 'attachTo', p.bench, 'prompt.q.attachTo', { c: attackRef(atk) }, 'Attach the Energy to which Benched Pokémon?', (x) => this.energyGap(x));
+          const t = await this.pickMon(p, 'attachTo', p.bench, 'prompt.q.attachTo', { c: attackRef(atk) }, 'Attach the Energy to which Benched Pokémon?', (x) => this.energyGap(x), { cards: [en] });
           await this.hooks.onAttach?.({ p: p.idx, mon: t.id, card: en });
           t.energy.push(...p.deck.splice(p.deck.indexOf(en), 1));
         }
-        shuffle(p.deck);
+        this.shuffle(p.deck);
       }
       if (fx.coordinatedPack) {
         for (const b of p.bench.filter((x) => x.name === 'Houndour')) {
@@ -750,14 +752,14 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
           await this.hooks.onAttach?.({ p: p.idx, mon: b.id, card: en });
           b.energy.push(this.searchDeck(p, en));
         }
-        shuffle(p.deck);
+        this.shuffle(p.deck);
       }
       if (fx.moveEnergyToBench && p.bench.length && this.allMons(p).includes(a)) {
         const pick = fx.moveEnergyToBench.all ? [...a.energy] : a.energy.filter((en) => !fx.moveEnergyToBench.type || en.energyType === fx.moveEnergyToBench.type).slice(0, fx.moveEnergyToBench.n);
         // Energy Slap: "you may move all Energy" — keep them when the attacker should stay powered up.
         const move = pick.length && (!fx.moveEnergyToBench.may || (await this.yesNo(p, 'prompt.q.moveAllEnergy', { c: attackRef(atk), m: C(a) }, `Move all Energy from ${a.name} to one of your Benched Pokémon?`, a.hpLeft <= 60 ? 1 : -1)));
         if (move) {
-          const t = await this.pickMon(p, 'attachTo', p.bench, 'prompt.q.attachTo', { c: attackRef(atk) }, 'Move the Energy onto which Benched Pokémon?', (x) => -this.energyGap(x) * -1);
+          const t = await this.pickMon(p, 'attachTo', p.bench, 'prompt.q.attachTo', { c: attackRef(atk) }, 'Move the Energy onto which Benched Pokémon?', (x) => -this.energyGap(x) * -1, { cards: pick });
           for (const en of pick) a.energy.splice(a.energy.indexOf(en), 1);
           t.energy.push(...pick);
           this.plog(p, 'log.energyMovedN', { n: pick.length, m: C(t) });
@@ -765,7 +767,7 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
       }
       if (fx.attachFromHand && p.hand.some((x) => x.kind === 'energy')) {
         const en = await this.pickCard(p, 'discard', p.hand.filter((x) => x.kind === 'energy'), 'prompt.q.energyFromHand', { c: attackRef(atk) }, 'Choose an Energy card from your hand to attach.', { unique: false, ai: () => 1 });
-        const t = await this.pickMon(p, 'attachTo', this.allMons(p), 'prompt.q.attachTo', { c: attackRef(atk) }, 'Attach it to which Pokémon?', (x) => -this.energyGap(x) * -1);
+        const t = await this.pickMon(p, 'attachTo', this.allMons(p), 'prompt.q.attachTo', { c: attackRef(atk) }, 'Attach it to which Pokémon?', (x) => -this.energyGap(x) * -1, { cards: [en] });
         await this.hooks.onAttach?.({ p: p.idx, mon: t.id, card: en });
         t.energy.push(this.takeFromHand(p, en));
         await this.oldCemetery(t);
@@ -794,7 +796,7 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
           const live = pool.filter((x) => left(x) > 0);
           if (!live.length) break;
           const t = await this.pickMon(p, 'counter', live, 'prompt.q.counterK', { c: attackRef(atk), k: k + 1, n: fx.placeCounters.n }, `Place damage counter ${k + 1} of ${fx.placeCounters.n} on which of the opponent's Pokémon?`,
-            (x) => (left(x) <= 10 ? 100 : 0) + (x.card.prizes ? 20 : 0) - left(x) / 10);
+            (x) => (left(x) <= 10 ? 100 : 0) + (x.card.prizes ? 20 : 0) - left(x) / 10, undefined, plan);
           plan.set(t, (plan.get(t) || 0) + 10);
         }
         if (plan.size) {
@@ -832,11 +834,11 @@ export function installModern(Game, { Mon, shuffle, C, PL, isBasic, isType, MAX_
           const b = await this.pickMonOrNone(p, 'evolveWhich', pool, 'prompt.q.evolveWhich', { c: attackRef(atk) }, 'Which Benched Pokémon evolves from your deck?', (x) => x.card.stage + 2);
           if (!b) break;
           done.add(b);
-          const options = p.deck.filter((x) => x.kind === 'pokemon' && x.evolvesFrom === b.name);
+          const options = this.viewDeck(p).filter((x) => x.kind === 'pokemon' && x.evolvesFrom === b.name);
           const evo = options.length > 1 ? await this.pickCard(p, 'search', options, 'prompt.q.searchPokemon', { c: attackRef(atk) }, 'Choose the Evolution card.', { ai: (y) => y.hp }) : options[0];
           await this.evolveMon(p, b, evo, { fromDeck: true });
         }
-        shuffle(p.deck);
+        this.shuffle(p.deck);
       }
       if (fx.tmDevolution) {
         for (const x of this.allMons(o)) {

@@ -3,7 +3,7 @@
 // Reached from the hooks in engine-swsh-v.js (Trainers, Abilities, attack effects, Stadiums) and engine.js (damage, setup, KOs).
 
 import { attackRef, powerRef } from './content-i18n/refs.js';
-export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH }) {
+export function installSm(Game, { C, isBasic, isType, MAX_BENCH }) {
   const basicEnergy = (x) => x.kind === 'energy' && !x.special;
   const ofType = (type) => (x) => basicEnergy(x) && x.energyType === type;
   const tag = (c, t) => !!c?.tags?.includes(t);
@@ -111,15 +111,15 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
       const pickHand = (text, ok, ai) => this.pickCard(p, 'discard', p.hand.filter(ok), text, { c: powerRef(power) }, 'Choose a card from your hand.', { unique: false, ai });
       switch (act.pkind) {
         case 'illuminate': {
-          const x = await this.pickCard(p, 'search', p.deck.filter((y) => y.kind === 'pokemon' && y.type === 'Grass'), 'prompt.q.searchPokemon', { c: powerRef(power) }, 'Choose a Grass Pokémon.', { ai: (y) => y.stage * 2 + (y.prizes || 0) });
+          const x = await this.pickCard(p, 'search', this.viewDeck(p).filter((y) => y.kind === 'pokemon' && y.type === 'Grass'), 'prompt.q.searchPokemon', { c: powerRef(power) }, 'Choose a Grass Pokémon.', { ai: (y) => y.stage * 2 + (y.prizes || 0) });
           if (x) { p.hand.push(this.searchDeck(p, x)); this.plog(p, 'log.t.got', { c: powerRef(power), got: C(x) }); }
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           break;
         }
         case 'magneticCircuit': {
           p.flags.powers[m.id] = false; // as often as you like
           const en = await pickHand('prompt.q.energyFromHand', (x) => x.kind === 'energy' && x.energyType === 'Lightning', () => 1);
-          const t = await this.pickMon(p, 'attachTo', this.allMons(p), 'prompt.q.attachTo', { c: powerRef(power) }, `Attach ${en.name} to which Pokémon?`, (x) => (x === p.active ? 2 : 0) - this.energyGap(x) * -1);
+          const t = await this.pickMon(p, 'attachTo', this.allMons(p), 'prompt.q.attachTo', { c: powerRef(power) }, `Attach ${en.name} to which Pokémon?`, (x) => (x === p.active ? 2 : 0) - this.energyGap(x) * -1, { cards: [en] });
           await this.attachHandCard(p, en, t);
           break;
         }
@@ -142,9 +142,9 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
           break;
         }
         case 'precognitiveAura': {
-          const x = await this.pickCard(p, 'search', p.deck, 'prompt.q.searchAny', { c: powerRef(power) }, 'Choose any card from your deck.', { ai: (y) => (y.ttype === 'supporter' ? 4 : y.kind === 'pokemon' && y.stage > 0 ? 3 : 1) });
+          const x = await this.pickCard(p, 'search', this.viewDeck(p), 'prompt.q.searchAny', { c: powerRef(power) }, 'Choose any card from your deck.', { ai: (y) => (y.ttype === 'supporter' ? 4 : y.kind === 'pokemon' && y.stage > 0 ? 3 : 1) });
           if (x) { p.hand.push(this.searchDeck(p, x)); this.plog(p, 'log.t.got', { c: powerRef(power), got: p.idx === 0 ? C(x) : { $hidden: true } }); }
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           break;
         }
         case 'darkInvitation': {
@@ -152,7 +152,7 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
           const x = await this.pickCard(p, 'search', o.hand.filter(isBasic), 'prompt.q.darkInvitation', { c: powerRef(power) }, "Choose a Basic Pokémon from the opponent's hand to put onto their Bench.", { unique: false, ai: (y) => -y.hp });
           if (x) {
             o.hand.splice(o.hand.indexOf(x), 1);
-            const nm = new Mon(x, this.turn);
+            const nm = this.createMon(x, this.turn);
             o.bench.push(nm);
             this.plog(o, 'log.bench', { c: C(x) });
             await this.spread(m, [[nm, 30]], { counters: true });
@@ -163,8 +163,8 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
         case 'psychicRecharge': await this.attachFromDiscard(p, p.bench, 1, (x) => x.kind === 'energy' && x.energyType === 'Psychic' && !x.special, powerRef(power)); break;
         case 'firestarter': await this.attachFromDiscard(p, p.bench, 1, (x) => x.kind === 'energy' && x.energyType === 'Fire' && !x.special, powerRef(power)); break;
         case 'smoothOver': {
-          const x = await this.pickCard(p, 'search', p.deck, 'prompt.q.searchAny', { c: powerRef(power) }, 'Choose a card to put on top of your deck.', { ai: (y) => (y.ttype === 'supporter' ? 4 : y.kind === 'pokemon' && y.stage > 0 ? 3 : 1) });
-          if (x) { p.deck.splice(p.deck.indexOf(x), 1); shuffle(p.deck); p.deck.push(x); this.plog(p, 'log.smoothOver', { c: powerRef(power) }); }
+          const x = await this.pickCard(p, 'search', this.viewDeck(p), 'prompt.q.searchAny', { c: powerRef(power) }, 'Choose a card to put on top of your deck.', { ai: (y) => (y.ttype === 'supporter' ? 4 : y.kind === 'pokemon' && y.stage > 0 ? 3 : 1) });
+          if (x) { p.deck.splice(p.deck.indexOf(x), 1); this.shuffle(p.deck); p.deck.push(x); this.plog(p, 'log.smoothOver', { c: powerRef(power) }); }
           break;
         }
         case 'unseenFlash': {
@@ -181,33 +181,33 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
           counterLog(this, m, 20);
           let n = 0;
           for (let k = 0; k < 2; k++) { // "up to 2"
-            const en = await this.pickCard(p, 'search', p.deck.filter((x) => x.kind === 'energy' && x.energyType === 'Fire' && !x.special), 'prompt.q.searchEnergy', { c: powerRef(power) }, 'Choose a Fire Energy to attach.', { none: true, ai: () => 1 });
+            const en = await this.pickCard(p, 'search', this.viewDeck(p).filter((x) => x.kind === 'energy' && x.energyType === 'Fire' && !x.special), 'prompt.q.searchEnergy', { c: powerRef(power) }, 'Choose a Fire Energy to attach.', { none: true, ai: () => 1 });
             if (!en) break;
             await this.hooks.onAttach?.({ p: p.idx, mon: m.id, card: en });
             m.energy.push(this.searchDeck(p, en)); n++;
           }
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           this.plog(p, 'log.energiesFound', { n });
           break;
         }
         case 'queensCall': {
-          const x = await this.pickCard(p, 'search', p.deck.filter((y) => y.kind === 'pokemon' && !isGXorEX(y)), 'prompt.q.searchPokemon', { c: powerRef(power) }, 'Choose a Pokémon.', { ai: (y) => y.stage * 2 });
+          const x = await this.pickCard(p, 'search', this.viewDeck(p).filter((y) => y.kind === 'pokemon' && !isGXorEX(y)), 'prompt.q.searchPokemon', { c: powerRef(power) }, 'Choose a Pokémon.', { ai: (y) => y.stage * 2 });
           if (x) { p.hand.push(this.searchDeck(p, x)); this.plog(p, 'log.t.got', { c: powerRef(power), got: C(x) }); }
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           break;
         }
         case 'powerfulSquall': {
           const top = p.deck.splice(-6);
           let n = 0;
           for (const en of top.filter((x) => x.kind === 'energy' && x.energyType === 'Water')) { // "any number": each may stay
-            const t = await this.pickMonOrNone(p, 'attachTo', this.allMons(p), 'prompt.q.attachToOrKeep', { c: powerRef(power) }, `Attach ${en.name} to which Pokémon (or leave it)?`, (x) => (x === p.active ? 2 : 0) - this.energyGap(x) * -1, -5);
+            const t = await this.pickMonOrNone(p, 'attachTo', this.allMons(p), 'prompt.q.attachToOrKeep', { c: powerRef(power) }, `Attach ${en.name} to which Pokémon (or leave it)?`, (x) => (x === p.active ? 2 : 0) - this.energyGap(x) * -1, -5, { cards: [en] });
             if (!t) continue;
             await this.hooks.onAttach?.({ p: p.idx, mon: t.id, card: en });
             top.splice(top.indexOf(en), 1);
             t.energy.push(en); n++;
           }
           p.deck.push(...top);
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           this.plog(p, 'log.energiesFound', { n });
           break;
         }
@@ -265,23 +265,23 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
       if (k === 'vitalDance') {
         let n = 0;
         for (let i = 0; i < 2; i++) {
-          const x = await this.pickCard(p, 'search', p.deck.filter(basicEnergy), 'prompt.q.searchEnergy', { c: pw }, 'You may take a basic Energy from your deck.', { none: true, ai: () => 1 });
+          const x = await this.pickCard(p, 'search', this.viewDeck(p).filter(basicEnergy), 'prompt.q.searchEnergy', { c: pw }, 'You may take a basic Energy from your deck.', { none: true, ai: () => 1 });
           if (!x) break;
           p.hand.push(this.searchDeck(p, x)); n++;
         }
         if (n) say();
-        shuffle(p.deck);
+        this.shuffle(p.deck);
         return true;
       }
       if (k === 'freshSqueezed') {
         let n = 0;
         for (let i = 0; i < 3; i++) {
-          const x = await this.pickCard(p, 'search', p.deck.filter(basicEnergy), 'prompt.q.freshSqueezed', { c: pw }, 'You may discard a basic Energy from your deck.', { none: true, ai: () => 1 });
+          const x = await this.pickCard(p, 'search', this.viewDeck(p).filter(basicEnergy), 'prompt.q.freshSqueezed', { c: pw }, 'You may discard a basic Energy from your deck.', { none: true, ai: () => 1 });
           if (!x) break;
           p.discard.push(this.searchDeck(p, x)); n++;
         }
         if (n) { say(); this.plog(p, 'log.freshSqueezed', { n }); }
-        shuffle(p.deck);
+        this.shuffle(p.deck);
         return true;
       }
       return false;
@@ -298,16 +298,16 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
     },
     async smUseStadium(p, act) {
       if (act.stadium === 'brookletHill') {
-        const x = await this.pickCard(p, 'search', p.deck.filter((y) => isBasic(y) && (y.type === 'Water' || y.type === 'Fighting')), 'prompt.q.callFamily', { c: C(this.stadium.card) }, 'Choose a Basic Water or Fighting Pokémon.', { ai: (y) => y.hp });
+        const x = await this.pickCard(p, 'search', this.viewDeck(p).filter((y) => isBasic(y) && (y.type === 'Water' || y.type === 'Fighting')), 'prompt.q.callFamily', { c: C(this.stadium.card) }, 'Choose a Basic Water or Fighting Pokémon.', { ai: (y) => y.hp });
         if (x) await this.benchFromDeck(p, x);
-        shuffle(p.deck);
+        this.shuffle(p.deck);
       }
       return false;
     },
 
     // ---------------- Trainer cards ----------------
     smTrainerActions(p, o, c, once, T) {
-      const mons = this.allMons(p), others = p.hand.length - 1, deckHas = (f) => p.deck.some(f), firstTurn = this.turn === (this.first === p ? 1 : 2);
+      const mons = this.allMons(p), others = p.hand.length - 1, deckHas = (f) => p.deck.some(f);
       switch (c.tkind) {
         case 'acerola': for (const m of mons) if (m.damage && (m !== p.active || p.bench.length) && once('acer' + m.id)) T('acerola', { m: C(m) }, `put ${m.name} and all cards on it into your hand.`, { target: m }); break;
         case 'apricornMaker': if (deckHas((x) => x.ttype === 'item' && x.name.includes('Ball')) && once('apri')) T('apricornMaker', {}, 'take up to 2 Item cards with "Ball" in their name from your deck.'); break;
@@ -322,7 +322,7 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
         case 'hau': if (p.deck.length && once('hau')) T('hau', {}, 'draw 3 cards.'); break;
         case 'kahili': if (p.deck.length && once('kahili')) T('kahili', {}, 'draw 2 cards, then flip a coin: heads, this card goes back to your hand.'); break;
         case 'lana': if (mons.some((x) => x.damage && x.energyTypes.some((t) => isType(t, 'Water'))) && once('lana')) T('lana', {}, 'heal 50 damage from each of your Pokémon with Water Energy.'); break;
-        case 'lillie': if (p.deck.length && p.hand.length - 1 < (firstTurn ? 8 : 6) && once('lillie')) T('lillie', {}, `draw until you have ${firstTurn ? 8 : 6} cards in your hand.`); break;
+        case 'lillie': if (p.deck.length && p.hand.length - 1 < this.lillieHandLimit(p) && once('lillie')) T('lillie', {}, `draw until you have ${this.lillieHandLimit(p)} cards in your hand.`); break;
         case 'looker': if (p.deck.length && once('looker')) T('looker', {}, 'draw 3 cards from the bottom of your deck.'); break;
         case 'lureBall': if (p.discard.some((x) => x.kind === 'pokemon' && x.stage > 0) && once('lure')) T('lureBall', {}, 'flip 3 coins: for each heads, put an Evolution Pokémon from your discard pile into your hand.'); break;
         case 'mallow': if (p.deck.length >= 2 && once('mallow')) T('mallow', {}, 'choose 2 cards from your deck and put them on top of it.'); break;
@@ -342,7 +342,7 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
     },
     async playSmTrainer(p, o, c, act, L) {
       const take = async (ok, text, en, { none = false, ai = () => 1 } = {}) => {
-        const x = await this.pickCard(p, 'search', p.deck.filter(ok), text, { c: C(c) }, en, { none, ai });
+        const x = await this.pickCard(p, 'search', this.viewDeck(p).filter(ok), text, { c: C(c) }, en, { none, ai });
         if (x) p.hand.push(p.deck.splice(p.deck.indexOf(x), 1)[0]);
         return x;
       };
@@ -362,7 +362,7 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
         case 'apricornMaker': {
           let n = 0;
           for (let k = 0; k < 2; k++) if (await take((x) => x.ttype === 'item' && x.name.includes('Ball'), 'prompt.q.searchTrainer', 'Choose an Item with "Ball" in its name.', { none: true })) n++;
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           L('gotN', { n });
           break;
         }
@@ -386,7 +386,7 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
             if (!x) break;
             p.deck.push(this.pullFromDiscard(p, x)); n++;
           }
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           L('shuffledBack', { n });
           break;
         }
@@ -395,7 +395,7 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
           const top = p.deck.slice(-7);
           const x = await this.pickCard(p, 'search', top.filter((y) => y.kind === 'energy'), 'prompt.q.searchEnergyAny', { c: C(c) }, 'Choose an Energy card from the top of your deck.', { none: true, unique: false, ai: () => 1 });
           if (x) { p.deck.splice(p.deck.indexOf(x), 1); p.hand.push(x); }
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           L(x ? 'got' : 'nothing', { got: x ? C(x) : '' });
           break;
         }
@@ -451,8 +451,7 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
         }
         case 'lana': for (const x of this.allMons(p)) if (x.damage && x.energyTypes.some((t) => isType(t, 'Water'))) await this.heal(x, 50); break;
         case 'lillie': {
-          const first = this.turn === (this.first === p ? 1 : 2);
-          L('drew', { n: this.draw(p, Math.max(0, (first ? 8 : 6) - p.hand.length)) });
+          L('drew', { n: this.draw(p, Math.max(0, this.lillieHandLimit(p) - p.hand.length)) });
           break;
         }
         case 'looker': { const out = p.deck.splice(0, Math.min(3, p.deck.length)); p.hand.push(...out); L('drew', { n: out.length }); break; }
@@ -469,11 +468,11 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
         case 'mallow': {
           const picked = [];
           for (let k = 0; k < 2; k++) {
-            const x = await this.pickCard(p, 'search', p.deck.filter((y) => !picked.includes(y)), 'prompt.q.searchAny', { c: C(c) }, 'Choose a card to put on top of your deck.', { unique: false, ai: (y) => (y.ttype === 'supporter' ? 3 : y.kind === 'pokemon' ? 2 : 1) });
+            const x = await this.pickCard(p, 'search', this.viewDeck(p).filter((y) => !picked.includes(y)), 'prompt.q.searchAny', { c: C(c) }, 'Choose a card to put on top of your deck.', { unique: false, ai: (y) => (y.ttype === 'supporter' ? 3 : y.kind === 'pokemon' ? 2 : 1) });
             if (x) picked.push(x);
           }
           for (const x of picked) p.deck.splice(p.deck.indexOf(x), 1);
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           p.deck.push(...picked.reverse());
           L('cipher', { n: picked.length });
           break;
@@ -481,7 +480,7 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
         case 'pokemonFanClub': {
           let n = 0;
           for (let k = 0; k < 2; k++) if (await take(isBasic, 'prompt.q.searchPokemon', 'Choose a Basic Pokémon.', { none: true, ai: (x) => x.hp })) n++;
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           L('gotN', { n });
           break;
         }
@@ -498,7 +497,7 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
               if (!x) break;
               p.deck.push(this.pullFromDiscard(p, x)); n++;
             }
-            shuffle(p.deck);
+            this.shuffle(p.deck);
             L('shuffledBack', { n });
           } else {
             const x = await this.pickCard(p, 'search', mons, 'prompt.q.fromDiscard', { c: C(c) }, 'Choose a Pokémon from your discard pile.', { unique: false, ai: (y) => y.stage + (y.prizes || 0) });
@@ -532,14 +531,14 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
         }
         case 'maskedRoyal': {
           const en = await this.pickCard(p, 'discard', p.hand.filter(basicEnergy), 'prompt.q.energyFromHand', { c: C(c) }, 'Choose a basic Energy from your hand.', { unique: false, ai: () => 1 });
-          const t = await this.pickMon(p, 'attachTo', this.allMons(p).filter((x) => x.card.stage === 2 && ['Grass', 'Fire', 'Water'].includes(x.card.type)), 'prompt.q.attachTo', { c: C(c) }, 'Attach it to which Stage 2 Pokémon?', (x) => (x === p.active ? 2 : 0));
+          const t = await this.pickMon(p, 'attachTo', this.allMons(p).filter((x) => x.card.stage === 2 && ['Grass', 'Fire', 'Water'].includes(x.card.type)), 'prompt.q.attachTo', { c: C(c) }, 'Attach it to which Stage 2 Pokémon?', (x) => (x === p.active ? 2 : 0), { cards: [en] });
           await this.attachHandCard(p, en, t);
           break;
         }
         case 'timerBall': {
           let n = 0;
           for (let k = 0; k < 2; k++) if ((await coin('search')) && (await take((x) => x.kind === 'pokemon' && x.stage > 0, 'prompt.q.searchPokemon', 'Choose an Evolution Pokémon.', { ai: (x) => x.stage + (this.allMons(p).some((y) => y.name === x.evolvesFrom) ? 5 : 0) }))) n++;
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           L('gotN', { n });
           break;
         }
@@ -668,21 +667,21 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
       if (fx.searchAnyPerBench) {
         let n = 0;
         for (let k = 0; k < p.bench.length; k++) {
-          const x = await this.pickCard(p, 'search', p.deck, 'prompt.q.searchAny', { c: attackRef(atk) }, 'Choose a card from your deck.', { none: true, ai: (y) => (y.ttype === 'supporter' ? 3 : y.kind === 'pokemon' && y.stage > 0 ? 2 : 1) });
+          const x = await this.pickCard(p, 'search', this.viewDeck(p), 'prompt.q.searchAny', { c: attackRef(atk) }, 'Choose a card from your deck.', { none: true, ai: (y) => (y.ttype === 'supporter' ? 3 : y.kind === 'pokemon' && y.stage > 0 ? 2 : 1) });
           if (!x) break;
           p.hand.push(this.searchDeck(p, x)); n++;
         }
-        shuffle(p.deck);
+        this.shuffle(p.deck);
         this.plog(p, 'log.t.drewN', { n });
       }
       if (fx.searchAny) {
         let n = 0;
         for (let k = 0; k < fx.searchAny; k++) {
-          const x = await this.pickCard(p, 'search', p.deck, 'prompt.q.searchAny', { c: attackRef(atk) }, 'Choose a card from your deck.', { none: true, ai: (y) => (y.ttype === 'supporter' ? 3 : y.kind === 'pokemon' && y.stage > 0 ? 2 : 1) });
+          const x = await this.pickCard(p, 'search', this.viewDeck(p), 'prompt.q.searchAny', { c: attackRef(atk) }, 'Choose a card from your deck.', { none: true, ai: (y) => (y.ttype === 'supporter' ? 3 : y.kind === 'pokemon' && y.stage > 0 ? 2 : 1) });
           if (!x) break;
           p.hand.push(this.searchDeck(p, x)); n++;
         }
-        shuffle(p.deck);
+        this.shuffle(p.deck);
         this.plog(p, 'log.t.drewN', { n });
       }
       if (fx.benchSharesType) {
@@ -697,7 +696,7 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
       }
       if (fx.benchFromDiscard && p.bench.length < MAX_BENCH) {
         const x = await this.pickCard(p, 'search', p.discard.filter(isBasic), 'prompt.q.fromDiscard', { c: attackRef(atk) }, 'Choose a Basic Pokémon from your discard pile to put onto your Bench.', { unique: false, ai: (y) => y.hp });
-        if (x) { const nm = new Mon(this.pullFromDiscard(p, x), this.turn); p.bench.push(nm); this.plog(p, 'log.bench', { c: C(x) }); }
+        if (x) { const nm = this.createMon(this.pullFromDiscard(p, x), this.turn); p.bench.push(nm); this.plog(p, 'log.bench', { c: C(x) }); }
       }
       if (fx.energyFromDiscard) {
         let n = 0;
@@ -712,9 +711,9 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
         (await this.yesNo(p, 'prompt.q.drawTo', { c: attackRef(atk), n: fx.drawToMay }, `Draw until you have ${fx.drawToMay} cards in your hand?`, p.deck.length > 8 ? 1 : -1)))
         this.plog(p, 'log.t.drewN', { n: this.draw(p, fx.drawToMay - p.hand.length) });
       if (fx.evolveSelfFromDeck && inPlay) {
-        const evo = await this.pickCard(p, 'search', p.deck.filter((y) => y.kind === 'pokemon' && y.evolvesFrom === a.name), 'prompt.q.searchPokemon', { c: attackRef(atk) }, 'Choose the card to evolve into.', { ai: (y) => y.hp });
+        const evo = await this.pickCard(p, 'search', this.viewDeck(p).filter((y) => y.kind === 'pokemon' && y.evolvesFrom === a.name), 'prompt.q.searchPokemon', { c: attackRef(atk) }, 'Choose the card to evolve into.', { ai: (y) => y.hp });
         if (evo) await this.evolveMon(p, a, evo, { fromDeck: true });
-        shuffle(p.deck);
+        this.shuffle(p.deck);
       }
       if (p.flags.swimTarget) {
         const t = o.bench.find((x) => x.id === p.flags.swimTarget);
@@ -742,7 +741,7 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
       }
       if (fx.moveAllEnergyBenchAny && inPlay && p.bench.length && a.energy.length) {
         for (const en of [...a.energy]) {
-          const t = await this.pickMon(p, 'attachTo', p.bench, 'prompt.q.attachTo', { c: attackRef(atk) }, `Move ${en.name} to which Benched Pokémon?`, (x) => -this.energyGap(x) * -1);
+          const t = await this.pickMon(p, 'attachTo', p.bench, 'prompt.q.attachTo', { c: attackRef(atk) }, `Move ${en.name} to which Benched Pokémon?`, (x) => -this.energyGap(x) * -1, { cards: [en] });
           t.energy.push(...a.energy.splice(a.energy.indexOf(en), 1));
         }
         this.plog(p, 'log.energyMovedN', { n: 0, m: C(a) });
@@ -750,7 +749,7 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
       if (fx.shuffleDiscardEnergyType) {
         let n = 0;
         for (let k = 0; k < fx.shuffleDiscardEnergyType.n; k++) { const x = p.discard.find((y) => y.kind === 'energy' && y.energyType === fx.shuffleDiscardEnergyType.type); if (!x) break; p.deck.push(this.pullFromDiscard(p, x)); n++; }
-        shuffle(p.deck);
+        this.shuffle(p.deck);
         this.plog(p, 'log.t.shuffledBack', { c: attackRef(atk), n });
       }
       if (fx.shuffleDiscardPokemonType) {
@@ -764,7 +763,7 @@ export function installSm(Game, { Mon, shuffle, C, isBasic, isType, MAX_BENCH })
           if (!x) break;
           p.deck.push(this.pullFromDiscard(p, x)); n++;
         }
-        shuffle(p.deck);
+        this.shuffle(p.deck);
         this.plog(p, 'log.t.shuffledBack', { c: attackRef(atk), n });
       }
       if (fx.attachHandBenchN && p.bench.length) {
