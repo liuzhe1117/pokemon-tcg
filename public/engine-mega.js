@@ -3,7 +3,7 @@
 // Mega Evolution Pokémon ex give up 3 Prize cards; Ancient and Future Pokémon have their own Trainers and Tools.
 
 import { attackRef, powerRef } from './content-i18n/refs.js';
-export function installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
+export function installMega(Game, { C, isBasic, MAX_BENCH }) {
   const basicEnergy = (x) => x.kind === 'energy' && !x.special;
   const tool = (m, k) => m.tools.some((t) => t.card.tool === k);
   const tagged = (c, tag) => !!c?.tags?.includes(tag);
@@ -58,12 +58,12 @@ export function installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
     statusImmune(m) { return this.modern && tool(m, 'ancientBooster') && tagged(m.card, 'Ancient'); },
 
     // How many Prize cards a Knock Out gives (Mega Evolution ex 3, ex/V 2; Shadowy Concealment takes 1 off).
-    prizeValue(q, m) {
-      const by = this.koBy;
+    prizeValue(q, m, { by = this.koBy, damage = this.damageKOs?.has(m),
+      active = this.damageKOs?.get(m) === true, inPlay = this.allMons(q) } = {}) {
       let n = m.card.prizes || 1;
-      if (this.damageKOs?.has(m) && by && isEx(by.card) && m.card.type === 'Darkness' &&
-          this.allMons(q).some((x) => x.card.powerKind === 'shadowyConcealment' && this.powerOn(x))) n = Math.max(0, n - 1);
-      return n + this.swshPrizeBonus(q, m);
+      if (damage && by && isEx(by.card) && m.card.type === 'Darkness' &&
+          inPlay.some((x) => x.card.powerKind === 'shadowyConcealment' && this.powerOn(x))) n = Math.max(0, n - 1);
+      return n + this.swshPrizeBonus(q, m, active);
     },
 
     // The Active Pokémon took damage from an attack: Punk Helmet and Automated Combat hit back.
@@ -87,7 +87,7 @@ export function installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
       this.log('log.counters', { n: n / 10, list: C(m) }, 'dmg');
     },
     benchFromDeck(p, x) {
-      const m = new Mon(this.searchDeck(p, x), this.turn);
+      const m = this.createMon(this.searchDeck(p, x), this.turn);
       p.bench.push(m);
       this.plog(p, 'log.bench', { c: C(x) });
       return this.modernBenched(p, m);
@@ -113,17 +113,17 @@ export function installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
       const k = m.card.powerKind, o = this.opp(p);
       const say = () => this.plog(p, 'log.ability', { m: C(m), pw: powerRef(m.card.power) });
       if (k === 'energizedSteps' || k === 'punkUp') {
-        const found = k === 'punkUp' ? p.deck.filter(ofType('Darkness')).slice(0, 5) : p.deck.slice(-4).filter(basicEnergy);
+        const found = k === 'punkUp' ? this.viewDeck(p).filter(ofType('Darkness')).slice(0, 5) : p.deck.slice(-4).filter(basicEnergy);
         const targets = k === 'punkUp' ? this.allMons(p).filter((x) => x.name.startsWith("Marnie's")) : this.allMons(p);
         if (!found.length || !targets.length) return true;
         say();
         for (const en of found) {
-          const t = await this.pickMon(p, 'attachTo', targets, 'prompt.q.attachTo', { c: powerRef(m.card.power) }, `Attach ${en.name} to which Pokémon?`, (x) => (x === m ? 3 : 0) + (x === p.active ? 2 : 0) - x.energyTypes.length * 0.5);
+          const t = await this.pickMon(p, 'attachTo', targets, 'prompt.q.attachTo', { c: powerRef(m.card.power) }, `Attach ${en.name} to which Pokémon?`, (x) => (x === m ? 3 : 0) + (x === p.active ? 2 : 0) - x.energyTypes.length * 0.5, { cards: [en] });
           await this.hooks.onAttach?.({ p: p.idx, mon: t.id, card: en });
           p.deck.splice(p.deck.indexOf(en), 1);
           t.energy.push(en);
         }
-        shuffle(p.deck);
+        this.shuffle(p.deck);
         this.plog(p, 'log.energiesFound', { n: found.length });
         return true;
       }
@@ -143,7 +143,7 @@ export function installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
       const k = m.card.powerKind, o = this.opp(p);
       if (k === 'lastDitchCatch') {
         if (p.flags.lastDitch) return true;
-        const x = await this.pickCard(p, 'search', p.deck.filter((y) => y.ttype === 'supporter'), 'prompt.q.searchSupporter', { c: powerRef(m.card.power) }, 'Choose a Supporter card from your deck.', { none: true, ai: (y) => (y.tkind === 'bossOrders' ? 3 : 1) });
+        const x = await this.pickCard(p, 'search', this.viewDeck(p).filter((y) => y.ttype === 'supporter'), 'prompt.q.searchSupporter', { c: powerRef(m.card.power) }, 'Choose a Supporter card from your deck.', { none: true, ai: (y) => (y.tkind === 'bossOrders' ? 3 : 1) });
         if (x) { p.flags.lastDitch = true; p.hand.push(this.searchDeck(p, x)); this.plog(p, 'log.ability', { m: C(m), pw: powerRef(m.card.power) }); }
         return true;
       }
@@ -205,7 +205,7 @@ export function installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
       const fromDeckTo = async (type, targets, self) => {
         const en = p.deck.find(ofType(type));
         if (!en || !targets.length) return null;
-        const t = self || (await this.pickMon(p, 'attachTo', targets, 'prompt.q.attachTo', { c: powerRef(power) }, `Attach ${en.name} to which Pokémon?`, (x) => (x === p.active ? 2 : 0) - x.energyTypes.length * 0.5));
+        const t = self || (await this.pickMon(p, 'attachTo', targets, 'prompt.q.attachTo', { c: powerRef(power) }, `Attach ${en.name} to which Pokémon?`, (x) => (x === p.active ? 2 : 0) - x.energyTypes.length * 0.5, { cards: [en], damage: act.pkind === 'sinisterSurge' ? 20 : 0 }));
         await this.hooks.onAttach?.({ p: p.idx, mon: t.id, card: en });
         t.energy.push(this.searchDeck(p, en));
         this.plog(p, 'log.energy', { c: C(en), m: C(t) });
@@ -224,7 +224,7 @@ export function installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
         case 'xBoot':
           await fromDeckTo('Psychic', this.allMons(p).filter((x) => x.card.type === 'Psychic' || x.card.type === 'Metal'));
           await fromDeckTo('Metal', this.allMons(p).filter((x) => x.card.type === 'Psychic' || x.card.type === 'Metal'));
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           break;
         case 'bouquetMagic': {
           await discardFromHand('Grass');
@@ -259,11 +259,11 @@ export function installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
         case 'cottonLift': {
           let n = 0;
           for (let k = 0; k < 2; k++) {
-            const en = await this.pickCard(p, 'search', p.deck.filter(basicEnergy), 'prompt.q.searchEnergy', { c: powerRef(power) }, 'Choose a basic Energy from your deck.', { none: true, ai: () => 1 });
+            const en = await this.pickCard(p, 'search', this.viewDeck(p).filter(basicEnergy), 'prompt.q.searchEnergy', { c: powerRef(power) }, 'Choose a basic Energy from your deck.', { none: true, ai: () => 1 });
             if (!en) break;
             p.hand.push(p.deck.splice(p.deck.indexOf(en), 1)[0]); n++;
           }
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           this.plog(p, 'log.energiesFound', { n });
           break;
         }
@@ -301,7 +301,7 @@ export function installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
           break;
         }
         case 'spikemuthGym': {
-          const x = await this.pickCard(p, 'search', p.deck.filter((y) => y.kind === 'pokemon' && y.name.startsWith("Marnie's")), 'prompt.q.searchPokemon', { c: C(s) }, "Choose a Marnie's Pokémon from your deck.", { ai: (y) => (y.prizes ? 5 : 0) + y.stage });
+          const x = await this.pickCard(p, 'search', this.viewDeck(p).filter((y) => y.kind === 'pokemon' && y.name.startsWith("Marnie's")), 'prompt.q.searchPokemon', { c: C(s) }, "Choose a Marnie's Pokémon from your deck.", { ai: (y) => (y.prizes ? 5 : 0) + y.stage });
           if (x) { p.hand.push(this.searchDeck(p, x)); this.plog(p, 'log.t.got', { c: C(s), got: p.idx === 0 ? C(x) : { $hidden: true } }); }
           break;
         }
@@ -358,7 +358,7 @@ export function installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
       const m = act.target;
       const pokeAi = (x) => (x.stage > 0 && this.allMons(p).some((y) => y.name === x.evolvesFrom) ? 10 : 0) + (x.prizes ? 6 : 0) + (x.stage === 0 && p.bench.length < MAX_BENCH ? 3 : 0);
       const take = async (ok, text, en, { none = false, ai = pokeAi } = {}) => {
-        const x = await this.pickCard(p, 'search', p.deck.filter(ok), text, { c: C(c) }, en, { none, ai });
+        const x = await this.pickCard(p, 'search', this.viewDeck(p).filter(ok), text, { c: C(c) }, en, { none, ai });
         if (x) p.hand.push(p.deck.splice(p.deck.indexOf(x), 1)[0]);
         return x;
       };
@@ -373,9 +373,9 @@ export function installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
         return n;
       };
       switch (c.tkind) {
-        case 'fightingGong': { const x = await take((y) => ofType('Fighting')(y) || (isBasic(y) && y.type === 'Fighting'), 'prompt.q.searchAny', 'Choose a basic Fighting Energy or Basic Fighting Pokémon.', { ai: (y) => (y.kind === 'pokemon' ? 2 : 1) }); shuffle(p.deck); if (x) L('got', { got: C(x) }); break; }
+        case 'fightingGong': { const x = await take((y) => ofType('Fighting')(y) || (isBasic(y) && y.type === 'Fighting'), 'prompt.q.searchAny', 'Choose a basic Fighting Energy or Basic Fighting Pokémon.', { ai: (y) => (y.kind === 'pokemon' ? 2 : 1) }); this.shuffle(p.deck); if (x) L('got', { got: C(x) }); break; }
         case 'lilliesDetermination': { const n = p.prizes.length === 6 ? 8 : 6; this.shuffleHandIn(p); L('drew', { n: this.draw(p, n) }); break; }
-        case 'megaSignal': { const x = await take((y) => isMega(y), 'prompt.q.searchPokemon', 'Choose a Mega Evolution Pokémon ex.'); shuffle(p.deck); if (x) L('got', { got: C(x) }); break; }
+        case 'megaSignal': { const x = await take((y) => isMega(y), 'prompt.q.searchPokemon', 'Choose a Mega Evolution Pokémon ex.'); this.shuffle(p.deck); if (x) L('got', { got: C(x) }); break; }
         case 'premiumPowerPro': p.flags.ppp = true; this.plog(p, 'log.boost', { n: 30, t: { $type: 'Fighting' } }); break;
         case 'wallysCompassion': {
           // Energy goes back to the hand only if damage was healed (Life-Locked can stop that).
@@ -388,7 +388,7 @@ export function installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
         }
         case 'dawn': {
           for (const st of [0, 1, 2]) await take((y) => y.kind === 'pokemon' && y.stage === st, 'prompt.q.searchPokemon', `Choose a ${['Basic', 'Stage 1', 'Stage 2'][st]} Pokémon.`, { none: true });
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           L('played');
           break;
         }
@@ -396,26 +396,28 @@ export function installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
           const top = p.deck.splice(-7);
           const x = await this.pickCard(p, 'search', top.filter((y) => isBasic(y) && y.type === 'Darkness'), 'prompt.q.callFamily', { c: C(c) }, 'Choose a Basic Darkness Pokémon to put onto your Bench.', { none: true, unique: false, ai: (y) => y.hp });
           if (x) top.splice(top.indexOf(x), 1);
-          shuffle(top);
+          this.shuffle(top);
           p.deck.unshift(...top);
-          if (x) { const nm = new Mon(x, this.turn); p.bench.push(nm); this.plog(p, 'log.bench', { c: C(x) }); await this.modernBenched(p, nm); } else L('nothing');
+          if (x) { const nm = this.createMon(x, this.turn); p.bench.push(nm); this.plog(p, 'log.bench', { c: C(x) }); await this.modernBenched(p, nm); } else L('nothing');
           break;
         }
         case 'wondrousPatch': await this.attachFromDiscard(p, p.bench.filter((x) => x.card.type === 'Psychic'), 1, ofType('Psychic'), C(c)); break;
-        case 'pokePad': { const x = await take((y) => y.kind === 'pokemon' && !y.ruleBox, 'prompt.q.searchPokemon', 'Choose a Pokémon without a Rule Box.'); shuffle(p.deck); if (x) L('got', { got: p.idx === 0 ? C(x) : { $hidden: true } }); break; }
+        case 'pokePad': { const x = await take((y) => y.kind === 'pokemon' && !y.ruleBox, 'prompt.q.searchPokemon', 'Choose a Pokémon without a Rule Box.'); this.shuffle(p.deck); if (x) L('got', { got: p.idx === 0 ? C(x) : { $hidden: true } }); break; }
         case 'judge': for (const q of [p, o]) { this.shuffleHandIn(q); this.plog(q, 'log.t.newHand', { n: this.draw(q, 4) }); } break;
-        case 'specialRedCard': { shuffle(o.hand); o.deck.unshift(...o.hand); o.hand = []; this.plog(o, 'log.t.newHand', { n: this.draw(o, 3) }); break; }
-        case 'energySearch': { const x = await take(basicEnergy, 'prompt.q.searchEnergy', 'Choose a basic Energy.', { ai: () => 1 }); shuffle(p.deck); if (x) L('got', { got: C(x) }); break; }
+        case 'specialRedCard': { this.shuffle(o.hand); o.deck.unshift(...o.hand); o.hand = []; this.plog(o, 'log.t.newHand', { n: this.draw(o, 3) }); break; }
+        case 'energySearch': { const x = await take(basicEnergy, 'prompt.q.searchEnergy', 'Choose a basic Energy.', { ai: () => 1 }); this.shuffle(p.deck); if (x) L('got', { got: C(x) }); break; }
         case 'energyRecycler': {
           let n = 0;
           for (let k = 0; k < 5; k++) { const en = p.discard.findLast(basicEnergy); if (!en) break; p.deck.push(this.pullFromDiscard(p, en)); n++; }
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           L('shuffledBack', { n });
           break;
         }
         case 'sadaVitality': {
           const ancient = this.allMons(p).filter((x) => tagged(x.card, 'Ancient'));
-          const done = await this.attachFromDiscard(p, ancient, Math.min(2, ancient.length), basicEnergy, C(c));
+          const done = await this.attachFromDiscard(p, ancient, Math.min(2, ancient.length), basicEnergy, C(c), {
+            upTo: true, distinct: true,
+          });
           if (done) L('drew', { n: this.draw(p, 3) });
           break;
         }
@@ -423,18 +425,18 @@ export function installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
           await discardOther(1);
           let n = 0;
           for (let k = 0; k < 2; k++) if (await take((y) => tagged(y, 'Future'), 'prompt.q.searchPokemon', 'Choose a Future Pokémon.', { none: true })) n++;
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           L('gotN', { n });
           break;
         }
         case 'ciphermaniac': {
           const picked = [];
           for (let k = 0; k < 2; k++) {
-            const x = await this.pickCard(p, 'search', p.deck.filter((y) => !picked.includes(y)), 'prompt.q.searchAny', { c: C(c) }, 'Choose a card to put on top of your deck.', { unique: false, ai: (y) => (y.ttype === 'supporter' ? 3 : y.kind === 'pokemon' ? 2 : 1) });
+            const x = await this.pickCard(p, 'search', this.viewDeck(p).filter((y) => !picked.includes(y)), 'prompt.q.searchAny', { c: C(c) }, 'Choose a card to put on top of your deck.', { unique: false, ai: (y) => (y.ttype === 'supporter' ? 3 : y.kind === 'pokemon' ? 2 : 1) });
             if (x) picked.push(x);
           }
           for (const x of picked) p.deck.splice(p.deck.indexOf(x), 1);
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           p.deck.push(...picked.reverse()); // the first card chosen is drawn first
           L('cipher', { n: picked.length });
           break;
@@ -455,7 +457,7 @@ export function installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
           await discardOther(3);
           let n = 0;
           for (const tt of ['item', 'tool', 'supporter', 'stadium']) if (await take((y) => y.ttype === tt, 'prompt.q.searchTrainer', `Choose a ${tt} card.`, { none: true, ai: () => 1 })) n++;
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           L('gotN', { n });
           break;
         }
@@ -466,7 +468,7 @@ export function installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
             const x = await this.pickCard(p, 'search', top.filter(ok), text, { c: C(c) }, 'Choose a card from the top of your deck.', { none: true, unique: false, ai: pokeAi });
             if (x) { p.deck.splice(p.deck.indexOf(x), 1); top.splice(top.indexOf(x), 1); p.hand.push(x); n++; }
           }
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           L('gotN', { n });
           break;
         }
@@ -481,7 +483,7 @@ export function installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
         case 'brocksScouting': {
           const first = await take((y) => y.kind === 'pokemon', 'prompt.q.searchPokemon', 'Choose up to 2 Basic Pokémon, or 1 Evolution Pokémon.', { ai: pokeAi });
           if (first && first.stage === 0) await take(isBasic, 'prompt.q.searchPokemon', 'Choose another Basic Pokémon.', { none: true });
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           L('played');
           break;
         }
@@ -489,7 +491,7 @@ export function installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
         case 'irida': {
           await take((y) => y.kind === 'pokemon' && y.type === 'Water', 'prompt.q.searchPokemon', 'Choose a Water Pokémon.', { none: true });
           await take((y) => y.ttype === 'item', 'prompt.q.searchTrainer', 'Choose an Item card.', { none: true, ai: (y) => (y.tkind === 'rareCandy' ? 3 : 1) });
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           L('played');
           break;
         }
@@ -512,7 +514,7 @@ export function installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
           let n = 0;
           if (await take((y) => y.kind === 'pokemon' && y.stage > 0, 'prompt.q.searchPokemon', 'Choose an Evolution Pokémon.', { none: true })) n++;
           if (await take((y) => y.kind === 'energy', 'prompt.q.searchEnergyAny', 'Choose an Energy card.', { none: true, ai: (y) => (y.special ? 2 : 1) })) n++;
-          shuffle(p.deck);
+          this.shuffle(p.deck);
           L('gotN', { n });
           break;
         }
@@ -569,18 +571,18 @@ export function installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
         let n = 0;
         for (let k = 0; k < fx.searchPokemonToHand.n; k++) {
           const ok = (y) => y.kind === 'pokemon' && (!fx.searchPokemonToHand.resistance || y.resistance === fx.searchPokemonToHand.resistance);
-          const x = await this.pickCard(p, 'search', p.deck.filter(ok), 'prompt.q.searchPokemon', { c: attackRef(atk) }, 'Choose a Pokémon from your deck.', { none: true, ai: (y) => (y.stage > 0 ? 5 : 0) + (y.prizes ? 4 : 0) });
+          const x = await this.pickCard(p, 'search', this.viewDeck(p).filter(ok), 'prompt.q.searchPokemon', { c: attackRef(atk) }, 'Choose a Pokémon from your deck.', { none: true, ai: (y) => (y.stage > 0 ? 5 : 0) + (y.prizes ? 4 : 0) });
           if (!x) break;
           p.hand.push(p.deck.splice(p.deck.indexOf(x), 1)[0]); n++;
         }
-        shuffle(p.deck);
+        this.shuffle(p.deck);
         this.plog(p, 'log.t.drewN', { n });
       }
       if (fx.evolveFromDeck) {
         const opts = this.allMons(p).filter((x) => p.deck.some((y) => y.kind === 'pokemon' && y.evolvesFrom === x.name));
         const t = await this.pickMon(p, 'evolveWhich', opts, 'prompt.q.evolveWhich', { c: attackRef(atk) }, 'Which of your Pokémon evolves (from your deck)?', (x) => (x.card.stage === 1 ? 3 : 1) + (x === p.active ? 1 : 0));
         if (t) await this.evolveMon(p, t, p.deck.find((y) => y.kind === 'pokemon' && y.evolvesFrom === t.name), { fromDeck: true });
-        shuffle(p.deck);
+        this.shuffle(p.deck);
       }
       if (fx.discardAllEnergy && a.energy.length) { const n = a.energy.length; p.discard.push(...a.energy.splice(0)); this.log('log.discardedAll', { m: C(a), n }, 'status'); }
       if (fx.returnEnergyToHand && a.energy.length) {
@@ -592,13 +594,13 @@ export function installMega(Game, { Mon, shuffle, C, isBasic, MAX_BENCH }) {
         const targets = this.allMons(p).filter((x) => tagged(x.card, fx.searchAttachTag.tag));
         for (let k = 0; k < fx.searchAttachTag.n && targets.length; k++) {
           const ok = fx.searchAttachTag.anyEnergy ? (x) => x.kind === 'energy' : basicEnergy; // Energy Mix: any Energy card
-          const en = await this.pickCard(p, 'search', p.deck.filter(ok), 'prompt.q.searchEnergy', { c: attackRef(atk) }, 'Choose an Energy card to attach.', { none: true, ai: (x) => (x.special ? 2 : 1) });
+          const en = await this.pickCard(p, 'search', this.viewDeck(p).filter(ok), 'prompt.q.searchEnergy', { c: attackRef(atk) }, 'Choose an Energy card to attach.', { none: true, ai: (x) => (x.special ? 2 : 1) });
           if (!en) break;
-          const t = await this.pickMon(p, 'attachTo', targets, 'prompt.q.attachTo', { c: attackRef(atk) }, `Attach ${en.name} to which Pokémon?`, (x) => -x.energyTypes.length);
+          const t = await this.pickMon(p, 'attachTo', targets, 'prompt.q.attachTo', { c: attackRef(atk) }, `Attach ${en.name} to which Pokémon?`, (x) => -x.energyTypes.length, { cards: [en] });
           await this.hooks.onAttach?.({ p: p.idx, mon: t.id, card: en });
           t.energy.push(this.searchDeck(p, en));
         }
-        shuffle(p.deck);
+        this.shuffle(p.deck);
       }
       if (fx.selfToHandAll && this.allMons(p).includes(a) && p.bench.length) {
         const cards = this.removeFromPlay(p, a);
